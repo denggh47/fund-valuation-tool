@@ -1400,9 +1400,14 @@
         let fundList = []; // 所有基金列表
         let isFetchingFundList = false; // 是否正在获取基金列表
         let fundDetails = {}; // 基金详细信息：{ code: { rates, managers, etc } }
-        
+
         // 基金详细信息加载队列
         let fundDetailsQueue = []; // 待加载的基金代码队列
+
+        // Cloudflare Worker 代理配置
+        // 部署后请将 PROXY_BASE_URL 修改为你的 Worker 地址
+        // 如: https://etf-proxy.yourname.workers.dev
+        const PROXY_BASE_URL = 'https://etf-proxy.denggh47.workers.dev';
         let isLoadingFundDetails = false; // 是否正在加载基金详细信息
 
         // 全局清理函数 - 清除所有基金详细信息数据
@@ -2411,7 +2416,13 @@
             loadingFundCodes.add(code);
 
             try {
-                const response = await fetch(`https://qt.gtimg.cn/q=${fullCode}`);
+                // 优先使用代理服务器，如果配置了 PROXY_BASE_URL
+                const apiUrl = PROXY_BASE_URL
+                    ? `${PROXY_BASE_URL}/api/etf/realtime?code=${fullCode}`
+                    : `https://qt.gtimg.cn/q=${fullCode}`;
+
+                console.log(`[fetchETFData] 请求URL: ${apiUrl}`);
+                const response = await fetch(apiUrl);
                 const arrayBuffer = await response.arrayBuffer();
                 const text = decodeGBK(arrayBuffer);
                 const data = parseTencentData(text, code);
@@ -2526,7 +2537,12 @@
 
             try {
                 // 获取240个交易日数据（约1年）
-                const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param=${fullCode},day,,,240,qfq&r=0.${Date.now()}`;
+                // 优先使用代理服务器，如果配置了 PROXY_BASE_URL
+                const url = PROXY_BASE_URL
+                    ? `${PROXY_BASE_URL}/api/etf/kline?code=${fullCode}&days=240`
+                    : `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param=${fullCode},day,,,240,qfq&r=0.${Date.now()}`;
+
+                console.log(`[fetchETFDetails] 请求URL: ${url}`);
                 const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
                 const text = decodeGBK(arrayBuffer);
