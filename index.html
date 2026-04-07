@@ -3769,7 +3769,7 @@
             console.log(`[drawNetWorthChart] 基金 ${code} - 前5个净值:`, netWorthValues.slice(0, 5));
             console.log(`[drawNetWorthChart] 基金 ${code} - 后5个净值:`, netWorthValues.slice(-5));
             
-            // 计算涨跌（相比第一个数据点）
+            // 单位净值颜色基于涨跌：涨-红色，跌-绿色
             const firstValue = netWorthValues[0];
             const lastValue = netWorthValues[netWorthValues.length - 1];
             const isPositive = lastValue >= firstValue;
@@ -3806,7 +3806,7 @@
                     {
                         label: 'MA180',
                         data: ma180Values,
-                        borderColor: '#52c41a',
+                        borderColor: '#1890ff', // MA180固定为蓝色
                         backgroundColor: 'transparent',
                         borderWidth: 2,
                         borderDash: [5, 5],
