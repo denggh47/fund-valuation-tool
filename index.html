@@ -2426,7 +2426,28 @@
                 }
             } catch (error) {
                 console.error(`加载ETF ${code} 数据失败:`, error);
-                alert(`加载ETF ${code} 数据失败，请检查网络连接`);
+
+                // 检查是否是跨域错误
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    console.warn(`[fetchETFData] ETF ${code} 可能是跨域限制导致`);
+
+                    // 显示跨域错误提示但不阻止使用
+                    fundsData[code] = {
+                        fundcode: code,
+                        name: 'ETF ' + code,
+                        gsz: '0.0000',
+                        dwjz: '0.0000',
+                        gszzl: '0',
+                        gztime: new Date().toLocaleTimeString('zh-CN'),
+                        jzrq: new Date().toLocaleDateString('zh-CN'),
+                        dataSource: 'tencent',
+                        errorMessage: '跨域限制：无法获取实时数据'
+                    };
+                    window.jsonpgz(fundsData[code]);
+                } else {
+                    alert(`加载ETF ${code} 数据失败，请检查网络连接`);
+                }
+
                 loadingFundCodes.delete(code);
             }
 
@@ -2586,6 +2607,33 @@
 
             } catch (error) {
                 console.error(`[fetchETFDetails] 获取ETF ${code} 详情失败:`, error);
+                
+                // 检查是否是跨域错误
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    console.warn(`[fetchETFDetails] ETF ${code} 可能是跨域限制导致，当前域名:`, window.location.origin);
+                    
+                    // 创建空的基金详情，避免一直显示加载中
+                    fundDetails[code] = {
+                        name: fundsData[code]?.name || code,
+                        code: code,
+                        netWorthData: [],
+                        sourceRate: '',
+                        currentRate: '',
+                        minAmount: '',
+                        managers: [],
+                        dataSource: 'tencent',
+                        syl_1y: '',
+                        syl_3y: '',
+                        syl_6y: '',
+                        syl_1n: '',
+                        errorMessage: '跨域限制：无法获取ETF历史数据，请在本地打开此页面'
+                    };
+                    
+                    // 触发渲染更新
+                    if (!skipRender) {
+                        renderFunds();
+                    }
+                }
             }
 
             // 标记加载完成，处理队列中的下一个
@@ -3289,6 +3337,12 @@
                     // 始终更新detailTabContent，只要有数据就显示
                     if (detailsInfoHtml || chartHtml) {
                         detailTabContent = detailsInfoHtml + chartHtml;
+                    } else if (details.errorMessage) {
+                        detailTabContent = `
+                            <div class="fund-details">
+                                <div class="no-position" style="color: #ff4d4f;">${details.errorMessage}</div>
+                            </div>
+                        `;
                     } else {
                         // 有details但没有具体内容时显示提示
                         detailTabContent = `
@@ -3520,6 +3574,12 @@
             // 只要有任何内容就显示，否则显示提示
             if (detailsInfoHtml || chartHtml) {
                 detailTabContent = detailsInfoHtml + chartHtml;
+            } else if (details.errorMessage) {
+                detailTabContent = `
+                    <div class="fund-details">
+                        <div class="no-position" style="color: #ff4d4f;">${details.errorMessage}</div>
+                    </div>
+                `;
             } else {
                 detailTabContent = `
                     <div class="fund-details">
