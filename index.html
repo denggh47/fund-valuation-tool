@@ -2551,11 +2551,15 @@
                 const jsonStr = text.replace('kline_dayqfq=', '');
                 const data = JSON.parse(jsonStr);
 
-                if (!data.data || !data.data[fullCode] || !data.data[fullCode].qfqday) {
+                if (!data.data || !data.data[fullCode]) {
                     throw new Error('ETF K线数据格式错误');
                 }
 
-                const klineData = data.data[fullCode].qfqday;
+                // 支持 qfqday 或 day 字段
+                const klineData = data.data[fullCode].qfqday || data.data[fullCode].day;
+                if (!klineData) {
+                    throw new Error('ETF K线数据格式错误：找不到 day 或 qfqday 字段');
+                }
                 console.log(`[fetchETFDetails] ETF ${code} 获取到 ${klineData.length} 条K线数据`);
 
                 // 转换为与场外基金兼容的格式
