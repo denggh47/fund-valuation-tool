@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -17,6 +18,7 @@
             background: linear-gradient(135deg, #F0F8FF 0%, #FAF0E6 200%);
             min-height: 100vh;
             padding: 20px;
+            zoom: 0.9;
         }
 
         .container {
@@ -987,7 +989,7 @@
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            font-size: 15px;
+            font-size: 14px;
             transition: all 0.3s;
         }
 
@@ -1001,7 +1003,7 @@
             display: block;
             margin-top: 5px;
             color: #999;
-            font-size: 12px;
+            font-size: 14px;
         }
 
         .form-actions {
@@ -1036,7 +1038,7 @@
             display: inline-block;
             padding: 3px 8px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 600;
             margin-right: 8px;
         }
@@ -1052,13 +1054,13 @@
         }
 
         .transaction-details {
-            font-size: 13px;
+            font-size: 14px;
             color: #666;
             margin-top: 5px;
         }
 
         .transaction-date {
-            font-size: 12px;
+            font-size: 14px;
             color: #999;
             margin-top: 3px;
         }
@@ -1125,7 +1127,7 @@
             }
 
             .confirm-fund-name {
-                font-size: 16px;
+                font-size: 14px;
             }
 
             .confirm-section-title {
@@ -1137,7 +1139,7 @@
             }
 
             .confirm-final-title {
-                font-size: 18px;
+                font-size: 14px;
             }
 
             .percentage-container {
@@ -1145,17 +1147,17 @@
             }
 
             .percentage {
-                font-size: 18px;
+                font-size: 14px;
                 padding: 8px 14px;
             }
 
             .daily-profit {
-                font-size: 18px;
+                font-size: 14px;
                 padding: 8px 14px;
             }
 
             .quick-sell-btn {
-                font-size: 13px;
+                font-size: 14px;
                 padding: 6px 10px;
             }
 
@@ -1169,7 +1171,7 @@
             }
 
             .stat-value {
-                font-size: 22px;
+                font-size: 20px;
             }
 
             .overview-header h2 {
@@ -2344,8 +2346,95 @@
             saveDailyRanges();
         }
 
+        // 判断是否为场内ETF基金
+        function isExchangeTradedFund(code) {
+            // 上海ETF: 51xxxx, 深圳ETF: 15xxxx, 北京ETF: 89xxxx
+            return /^51\d{4}$/.test(code) || /^15\d{4}$/.test(code) || /^89\d{4}$/.test(code);
+        }
+
+        // 获取交易所前缀
+        function getExchangePrefix(code) {
+            if (/^51\d{4}$/.test(code) || /^88\d{4}$/.test(code)) {
+                return 'sh';
+            } else if (/^15\d{4}$/.test(code) || /^13\d{4}$/.test(code) || /^16\d{4}$/.test(code)) {
+                return 'sz';
+            } else if (/^89\d{4}$/.test(code)) {
+                return 'bj';
+            }
+            return 'sh'; // 默认上海
+        }
+
+        // 解析腾讯财经返回的数据
+        function parseTencentData(responseText, code) {
+            const pattern = new RegExp(`v_[a-z]+${code}="([^"]+)"`);
+            const match = responseText.match(pattern);
+            if (match) {
+                const fields = match[1].split('~');
+                // 腾讯数据格式：1~名称~代码~现价~昨收~...~涨跌幅(~字段32)...
+                const currentPrice = parseFloat(fields[3]);
+                const prevClose = parseFloat(fields[4]);
+                const changePercent = ((currentPrice - prevClose) / prevClose * 100).toFixed(2);
+
+                return {
+                    fundcode: code,
+                    name: fields[1],
+                    gsz: currentPrice.toFixed(4),      // 当前价格（作为估算净值）
+                    dwjz: prevClose.toFixed(4),        // 昨收（作为单位净值）
+                    gszzl: changePercent,              // 涨跌幅
+                    gztime: new Date().toLocaleTimeString('zh-CN'),
+                    jzrq: new Date().toLocaleDateString('zh-CN'),  // 净值日期（昨收日期）
+                    dataSource: 'tencent'
+                };
+            }
+            return null;
+        }
+
+        // GBK解码函数
+        function decodeGBK(arrayBuffer) {
+            const decoder = new TextDecoder('gbk');
+            return decoder.decode(arrayBuffer);
+        }
+
+        // 获取ETF数据（通过腾讯财经接口）
+        async function fetchETFData(code) {
+            const prefix = getExchangePrefix(code);
+            const fullCode = `${prefix}${code}`;
+
+            loadingFundCodes.add(code);
+
+            try {
+                const response = await fetch(`https://qt.gtimg.cn/q=${fullCode}`);
+                const arrayBuffer = await response.arrayBuffer();
+                const text = decodeGBK(arrayBuffer);
+                const data = parseTencentData(text, code);
+
+                if (data) {
+                    // 模拟jsonpgz回调的数据格式
+                    window.jsonpgz(data);
+                } else {
+                    console.error(`解析ETF ${code} 数据失败`);
+                    alert(`ETF代码 ${code} 数据解析失败，请检查代码是否正确`);
+                    loadingFundCodes.delete(code);
+                }
+            } catch (error) {
+                console.error(`加载ETF ${code} 数据失败:`, error);
+                alert(`加载ETF ${code} 数据失败，请检查网络连接`);
+                loadingFundCodes.delete(code);
+            }
+
+            // 同时获取ETF详细信息（历史K线）
+            fetchFundDetails(code);
+        }
+
         // 获取基金数据（JSONP）
         function fetchFundData(code) {
+            // 判断是否为场内ETF
+            if (isExchangeTradedFund(code)) {
+                fetchETFData(code);
+                return;
+            }
+
+            // 原有场外基金数据获取逻辑
             // 清理旧的script标签
             const oldScript = document.getElementById(`fund-script-${code}`);
             if (oldScript) {
@@ -2399,8 +2488,112 @@
         }
         
         // 内部函数：实际加载基金详细信息
+        // 获取ETF详细信息（历史K线数据）
+        async function fetchETFDetails(code, skipRender = false) {
+            console.log(`[fetchETFDetails] 开始获取ETF ${code} 的详细信息`);
+
+            const prefix = getExchangePrefix(code);
+            const fullCode = `${prefix}${code}`;
+
+            try {
+                // 获取240个交易日数据（约1年）
+                const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param=${fullCode},day,,,240,qfq&r=0.${Date.now()}`;
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const text = decodeGBK(arrayBuffer);
+
+                // 解析JSONP格式
+                const jsonStr = text.replace('kline_dayqfq=', '');
+                const data = JSON.parse(jsonStr);
+
+                if (!data.data || !data.data[fullCode] || !data.data[fullCode].qfqday) {
+                    throw new Error('ETF K线数据格式错误');
+                }
+
+                const klineData = data.data[fullCode].qfqday;
+                console.log(`[fetchETFDetails] ETF ${code} 获取到 ${klineData.length} 条K线数据`);
+
+                // 转换为与场外基金兼容的格式
+                const netWorthData = klineData.map(item => ({
+                    x: new Date(item[0]).getTime(),
+                    y: parseFloat(item[2]) // 收盘价作为净值
+                }));
+
+                // 计算历史收益率（基于收盘价）
+                const currentPrice = parseFloat(klineData[klineData.length - 1][2]);
+                const getPriceDaysAgo = (days) => {
+                    const index = klineData.length - 1 - days;
+                    return index >= 0 ? parseFloat(klineData[index][2]) : null;
+                };
+
+                // 计算不同周期的收益率 (约20交易日/月)
+                const price1m = getPriceDaysAgo(20);
+                const price3m = getPriceDaysAgo(60);
+                const price6m = getPriceDaysAgo(120);
+                const price1y = getPriceDaysAgo(240);
+
+                const syl_1y = price1m ? ((currentPrice - price1m) / price1m * 100).toFixed(2) : '';
+                const syl_3y = price3m ? ((currentPrice - price3m) / price3m * 100).toFixed(2) : '';
+                const syl_6y = price6m ? ((currentPrice - price6m) / price6m * 100).toFixed(2) : '';
+                const syl_1n = price1y ? ((currentPrice - price1y) / price1y * 100).toFixed(2) : '';
+
+                // 计算其他核心指标
+                const high52w = Math.max(...klineData.map(item => parseFloat(item[3]))); // 最高价
+                const low52w = Math.min(...klineData.map(item => parseFloat(item[4])));  // 最低价
+                const totalVolume = klineData.slice(-20).reduce((sum, item) => sum + parseFloat(item[5]), 0); // 近20日总成交量
+
+                fundDetails[code] = {
+                    name: fundsData[code]?.name || code,
+                    code: code,
+                    netWorthData: netWorthData,
+                    sourceRate: '',
+                    currentRate: '',
+                    minAmount: '',
+                    managers: [],
+                    dataSource: 'tencent',
+                    // 历史收益率
+                    syl_1y: syl_1y,
+                    syl_3y: syl_3y,
+                    syl_6y: syl_6y,
+                    syl_1n: syl_1n,
+                    // 其他核心指标
+                    high52w: high52w.toFixed(2),
+                    low52w: low52w.toFixed(2),
+                    avgVolume: (totalVolume / 20 / 10000).toFixed(2) + '万', // 日均成交量（万股）
+                    totalReturn: price1y ? ((currentPrice - parseFloat(klineData[0][2])) / parseFloat(klineData[0][2]) * 100).toFixed(2) + '%' : 'N/A'
+                };
+
+                // 缓存到localStorage
+                localStorage.setItem(`fundDetail_${code}`, JSON.stringify({
+                    data: fundDetails[code],
+                    timestamp: Date.now()
+                }));
+
+                if (!skipRender) {
+                    const updated = updateFundDetailsTab(code);
+                    if (!updated) {
+                        renderFunds();
+                    }
+                }
+
+            } catch (error) {
+                console.error(`[fetchETFDetails] 获取ETF ${code} 详情失败:`, error);
+            }
+
+            // 标记加载完成，处理队列中的下一个
+            isLoadingFundDetails = false;
+            processFundDetailsQueue();
+        }
+
         function fetchFundDetailsInternal(code, skipRender = false) {
             console.log(`[fetchFundDetailsInternal] 开始获取基金 ${code} 的详细信息，skipRender=${skipRender}`);
+
+            // 判断是否为场内ETF，如果是则使用ETF专用接口
+            if (isExchangeTradedFund(code)) {
+                fetchETFDetails(code, skipRender);
+                return;
+            }
+
             // 检查缓存
             const cached = localStorage.getItem(`fundDetail_${code}`);
             if (cached) {
@@ -2942,9 +3135,14 @@
 
                 // 持有/自选标识
                 const hasPosition = posInfo && posInfo.totalShares > 0;
-                const fundBadge = hasPosition 
-                    ? '<span class="fund-badge holding">持有</span>' 
+                const fundBadge = hasPosition
+                    ? '<span class="fund-badge holding">持有</span>'
                     : '<span class="fund-badge watching">自选</span>';
+
+                // 场内/场外标识
+                const sourceBadge = data.dataSource === 'tencent'
+                    ? '<span class="fund-badge" style="background: #e3f2fd; color: #1976d2; margin-left: 4px;">场内</span>'
+                    : '<span class="fund-badge" style="background: #f3e5f5; color: #7b1fa2; margin-left: 4px;">场外</span>';
 
                 // 基金详细信息
                 const details = fundDetails[code];
@@ -2995,23 +3193,63 @@
                         `);
                     }
                     
-                    // 基金经理信息
+                    // 基金经理信息（已移除）
                     let managerHtml = '';
-                    if (details.managers && details.managers.length > 0) {
-                        const managerNames = details.managers.map(m => m.name).join('、');
-                        const workTime = details.managers[0].workTime || '';
-                        managerHtml = `
-                            <div class="fund-manager-info">
-                                👨‍💼 基金经理：<span class="fund-manager-name">${managerNames}</span>
-                                ${workTime ? ` (任职${workTime})` : ''}
-                            </div>
-                        `;
+                    
+                    // 构建ETF核心指标（如果是场内基金）
+                    let etfMetricsHtml = '';
+                    if (details.dataSource === 'tencent') {
+                        const etfMetrics = [];
+                        if (details.high52w) {
+                            etfMetrics.push(`
+                                <div class="fund-detail-item">
+                                    <div class="fund-detail-label">52周最高</div>
+                                    <div class="fund-detail-value">${details.high52w}</div>
+                                </div>
+                            `);
+                        }
+                        if (details.low52w) {
+                            etfMetrics.push(`
+                                <div class="fund-detail-item">
+                                    <div class="fund-detail-label">52周最低</div>
+                                    <div class="fund-detail-value">${details.low52w}</div>
+                                </div>
+                            `);
+                        }
+                        if (details.avgVolume) {
+                            etfMetrics.push(`
+                                <div class="fund-detail-item">
+                                    <div class="fund-detail-label">日均成交量</div>
+                                    <div class="fund-detail-value">${details.avgVolume}</div>
+                                </div>
+                            `);
+                        }
+                        if (details.totalReturn && details.totalReturn !== 'N/A') {
+                            etfMetrics.push(`
+                                <div class="fund-detail-item">
+                                    <div class="fund-detail-label">总回报率</div>
+                                    <div class="fund-detail-value">${details.totalReturn}</div>
+                                </div>
+                            `);
+                        }
+                        if (etfMetrics.length > 0) {
+                            etfMetricsHtml = `
+                                <div class="fund-details" style="margin-top: 15px;">
+                                    <div class="fund-details-header">
+                                        <h4>📈 核心指标</h4>
+                                    </div>
+                                    <div class="fund-details-grid">
+                                        ${etfMetrics.join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }
                     }
-                    
+
                     // 构建详情内容（包括收益率信息、经理信息和图表容器）
-                    const hasRateInfo = ratesHtml.length > 0 || managerHtml;
+                    const hasRateInfo = ratesHtml.length > 0;
                     const hasNetWorthData = details.netWorthData && details.netWorthData.length > 0;
-                    
+
                     if (hasRateInfo || hasNetWorthData) {
                         let detailsInfoHtml = '';
                         if (hasRateInfo) {
@@ -3025,6 +3263,7 @@
                                     </div>
                                     ${managerHtml}
                                 </div>
+                                ${etfMetricsHtml}
                             `;
                         }
                         
@@ -3054,6 +3293,7 @@
                                 <div class="fund-name">
                                     <span>${data.name}</span>
                                     ${fundBadge}
+                                    ${sourceBadge}
                                 </div>
                                 <div class="fund-code">${data.fundcode}</div>
                             </div>
@@ -3179,21 +3419,11 @@
                 `);
             }
             
-            // 基金经理信息
+            // 基金经理信息（已移除）
             let managerHtml = '';
-            if (details.managers && details.managers.length > 0) {
-                const managerNames = details.managers.map(m => m.name).join('、');
-                const workTime = details.managers[0].workTime || '';
-                managerHtml = `
-                    <div class="fund-manager-info">
-                        👨‍💼 基金经理：<span class="fund-manager-name">${managerNames}</span>
-                        ${workTime ? ` (任职${workTime})` : ''}
-                    </div>
-                `;
-            }
-            
+
             // 构建详情内容
-            const hasRateInfo = ratesHtml.length > 0 || managerHtml;
+            const hasRateInfo = ratesHtml.length > 0;
             const hasNetWorthData = details.netWorthData && details.netWorthData.length > 0;
             
             let detailTabContent = '<div class="fund-details"><div class="no-position">基金详情加载中...</div></div>';
@@ -3547,6 +3777,14 @@
             
             console.log(`[drawNetWorthChart] 基金 ${code} - 首个净值: ${firstValue}, 最后净值: ${lastValue}, 涨跌: ${isPositive ? '上涨' : '下跌'}`);
 
+            // 计算MA180（最近180日平均值）作为水平参考线
+            const maPeriod = Math.min(180, netWorthValues.length);
+            const recentValues = netWorthValues.slice(-maPeriod);
+            const currentMA180 = recentValues.reduce((a, b) => a + b, 0) / recentValues.length;
+            // MA180水平参考线：使用同一数值填充整个数据范围
+            const ma180Values = new Array(netWorthValues.length).fill(currentMA180);
+            console.log(`[drawNetWorthChart] 基金 ${code} - MA${maPeriod}: ${currentMA180.toFixed(4)}`);
+
             charts[`net-worth-${code}`] = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -3564,6 +3802,19 @@
                         pointHoverBackgroundColor: lineColor,
                         pointHoverBorderColor: '#fff',
                         pointHoverBorderWidth: 2
+                    },
+                    {
+                        label: 'MA180',
+                        data: ma180Values,
+                        borderColor: '#52c41a',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.3,
+                        fill: false,
+                        pointRadius: 0,
+                        pointHoverRadius: 3,
+                        pointHoverBackgroundColor: '#FF6B6B'
                     }]
                 },
                 options: {
@@ -3571,20 +3822,32 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: false
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'line',
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
                         },
                         tooltip: {
                             mode: 'index',
                             intersect: false,
                             callbacks: {
                                 label: function(context) {
-                                    return '净值：' + context.parsed.y.toFixed(4);
+                                    const label = context.dataset.label;
+                                    const value = context.parsed.y;
+                                    if (value === null) return null;
+                                    return `${label}：${value.toFixed(4)}`;
                                 }
                             }
                         },
                         title: {
                             display: true,
-                            text: '单位净值走势（近180天）',
+                            text: `单位净值走势（近180天）- MA${maPeriod}（近${maPeriod}日平均净值）`,
                             font: {
                                 size: 14,
                                 weight: 'bold'
