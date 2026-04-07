@@ -2391,8 +2391,16 @@
 
         // GBK解码函数
         function decodeGBK(arrayBuffer) {
-            const decoder = new TextDecoder('gbk');
-            return decoder.decode(arrayBuffer);
+            try {
+                // 尝试使用GBK解码
+                const decoder = new TextDecoder('gbk');
+                return decoder.decode(arrayBuffer);
+            } catch (e) {
+                // 如果GBK不支持，尝试使用UTF-8（某些浏览器可能不支持GBK）
+                console.warn('GBK decoder not supported, falling back to UTF-8');
+                const decoder = new TextDecoder('utf-8');
+                return decoder.decode(arrayBuffer);
+            }
         }
 
         // 获取ETF数据（通过腾讯财经接口）
@@ -3250,39 +3258,44 @@
                     const hasRateInfo = ratesHtml.length > 0;
                     const hasNetWorthData = details.netWorthData && details.netWorthData.length > 0;
 
-                    if (hasRateInfo || hasNetWorthData) {
-                        let detailsInfoHtml = '';
-                        if (hasRateInfo) {
-                            detailsInfoHtml = `
-                                <div class="fund-details">
-                                    <div class="fund-details-header">
-                                        <h4>📊 历史收益率</h4>
-                                    </div>
-                                    <div class="fund-details-grid">
-                                        ${ratesHtml.join('')}
-                                    </div>
-                                    ${managerHtml}
+                    // 只要有任何数据就显示内容
+                    let detailsInfoHtml = '';
+                    if (hasRateInfo) {
+                        detailsInfoHtml += `
+                            <div class="fund-details">
+                                <div class="fund-details-header">
+                                    <h4>📊 历史收益率</h4>
                                 </div>
-                                ${etfMetricsHtml}
-                            `;
-                        }
-                        
-                        let chartHtml = '';
-                        if (hasNetWorthData) {
-                            chartHtml = `
-                                <div class="net-worth-chart-container">
-                                    <canvas id="net-worth-chart-${code}"></canvas>
+                                <div class="fund-details-grid">
+                                    ${ratesHtml.join('')}
                                 </div>
-                            `;
-                        } else {
-                            chartHtml = `
-                                <div class="fund-details">
-                                    <div class="no-position">净值数据加载中...</div>
-                                </div>
-                            `;
-                        }
-                        
+                                ${managerHtml}
+                            </div>
+                        `;
+                    }
+                    if (etfMetricsHtml) {
+                        detailsInfoHtml += etfMetricsHtml;
+                    }
+                    
+                    let chartHtml = '';
+                    if (hasNetWorthData) {
+                        chartHtml = `
+                            <div class="net-worth-chart-container">
+                                <canvas id="net-worth-chart-${code}"></canvas>
+                            </div>
+                        `;
+                    }
+                    
+                    // 始终更新detailTabContent，只要有数据就显示
+                    if (detailsInfoHtml || chartHtml) {
                         detailTabContent = detailsInfoHtml + chartHtml;
+                    } else {
+                        // 有details但没有具体内容时显示提示
+                        detailTabContent = `
+                            <div class="fund-details">
+                                <div class="no-position">基金数据加载中，请稍候...</div>
+                            </div>
+                        `;
                     }
                 }
 
@@ -3421,45 +3434,98 @@
             
             // 基金经理信息（已移除）
             let managerHtml = '';
+            
+            // 构建ETF核心指标（如果是场内基金）
+            let etfMetricsHtml = '';
+            if (details.dataSource === 'tencent') {
+                const etfMetrics = [];
+                if (details.high52w) {
+                    etfMetrics.push(`
+                        <div class="fund-detail-item">
+                            <div class="fund-detail-label">52周最高</div>
+                            <div class="fund-detail-value">${details.high52w}</div>
+                        </div>
+                    `);
+                }
+                if (details.low52w) {
+                    etfMetrics.push(`
+                        <div class="fund-detail-item">
+                            <div class="fund-detail-label">52周最低</div>
+                            <div class="fund-detail-value">${details.low52w}</div>
+                        </div>
+                    `);
+                }
+                if (details.avgVolume) {
+                    etfMetrics.push(`
+                        <div class="fund-detail-item">
+                            <div class="fund-detail-label">日均成交量</div>
+                            <div class="fund-detail-value">${details.avgVolume}</div>
+                        </div>
+                    `);
+                }
+                if (details.totalReturn && details.totalReturn !== 'N/A') {
+                    etfMetrics.push(`
+                        <div class="fund-detail-item">
+                            <div class="fund-detail-label">总回报率</div>
+                            <div class="fund-detail-value">${details.totalReturn}</div>
+                        </div>
+                    `);
+                }
+                if (etfMetrics.length > 0) {
+                    etfMetricsHtml = `
+                        <div class="fund-details" style="margin-top: 15px;">
+                            <div class="fund-details-header">
+                                <h4>📈 核心指标</h4>
+                            </div>
+                            <div class="fund-details-grid">
+                                ${etfMetrics.join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
 
             // 构建详情内容
             const hasRateInfo = ratesHtml.length > 0;
             const hasNetWorthData = details.netWorthData && details.netWorthData.length > 0;
             
-            let detailTabContent = '<div class="fund-details"><div class="no-position">基金详情加载中...</div></div>';
+            let detailTabContent = '';
+            let detailsInfoHtml = '';
+            if (hasRateInfo) {
+                detailsInfoHtml += `
+                    <div class="fund-details">
+                        <div class="fund-details-header">
+                            <h4>📊 历史收益率</h4>
+                        </div>
+                        <div class="fund-details-grid">
+                            ${ratesHtml.join('')}
+                        </div>
+                        ${managerHtml}
+                    </div>
+                `;
+            }
+            if (etfMetricsHtml) {
+                detailsInfoHtml += etfMetricsHtml;
+            }
             
-            if (hasRateInfo || hasNetWorthData) {
-                let detailsInfoHtml = '';
-                if (hasRateInfo) {
-                    detailsInfoHtml = `
-                        <div class="fund-details">
-                            <div class="fund-details-header">
-                                <h4>📊 历史收益率</h4>
-                            </div>
-                            <div class="fund-details-grid">
-                                ${ratesHtml.join('')}
-                            </div>
-                            ${managerHtml}
-                        </div>
-                    `;
-                }
-                
-                let chartHtml = '';
-                if (hasNetWorthData) {
-                    chartHtml = `
-                        <div class="net-worth-chart-container">
-                            <canvas id="net-worth-chart-${code}"></canvas>
-                        </div>
-                    `;
-                } else {
-                    chartHtml = `
-                        <div class="fund-details">
-                            <div class="no-position">净值数据加载中...</div>
-                        </div>
-                    `;
-                }
-                
+            let chartHtml = '';
+            if (hasNetWorthData) {
+                chartHtml = `
+                    <div class="net-worth-chart-container">
+                        <canvas id="net-worth-chart-${code}"></canvas>
+                    </div>
+                `;
+            }
+            
+            // 只要有任何内容就显示，否则显示提示
+            if (detailsInfoHtml || chartHtml) {
                 detailTabContent = detailsInfoHtml + chartHtml;
+            } else {
+                detailTabContent = `
+                    <div class="fund-details">
+                        <div class="no-position">暂无详细数据</div>
+                    </div>
+                `;
             }
             
             // 更新DOM
