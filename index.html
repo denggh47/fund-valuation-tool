@@ -3272,56 +3272,6 @@
                     // 基金经理信息（已移除）
                     let managerHtml = '';
                     
-                    // 构建ETF核心指标（如果是场内基金）
-                    let etfMetricsHtml = '';
-                    if (details.dataSource === 'tencent') {
-                        const etfMetrics = [];
-                        if (details.high52w) {
-                            etfMetrics.push(`
-                                <div class="fund-detail-item">
-                                    <div class="fund-detail-label">52周最高</div>
-                                    <div class="fund-detail-value">${details.high52w}</div>
-                                </div>
-                            `);
-                        }
-                        if (details.low52w) {
-                            etfMetrics.push(`
-                                <div class="fund-detail-item">
-                                    <div class="fund-detail-label">52周最低</div>
-                                    <div class="fund-detail-value">${details.low52w}</div>
-                                </div>
-                            `);
-                        }
-                        if (details.avgVolume) {
-                            etfMetrics.push(`
-                                <div class="fund-detail-item">
-                                    <div class="fund-detail-label">日均成交量</div>
-                                    <div class="fund-detail-value">${details.avgVolume}</div>
-                                </div>
-                            `);
-                        }
-                        if (details.totalReturn && details.totalReturn !== 'N/A') {
-                            etfMetrics.push(`
-                                <div class="fund-detail-item">
-                                    <div class="fund-detail-label">总回报率</div>
-                                    <div class="fund-detail-value">${details.totalReturn}</div>
-                                </div>
-                            `);
-                        }
-                        if (etfMetrics.length > 0) {
-                            etfMetricsHtml = `
-                                <div class="fund-details" style="margin-top: 15px;">
-                                    <div class="fund-details-header">
-                                        <h4>📈 核心指标</h4>
-                                    </div>
-                                    <div class="fund-details-grid">
-                                        ${etfMetrics.join('')}
-                                    </div>
-                                </div>
-                            `;
-                        }
-                    }
-
                     // 构建详情内容（包括收益率信息、经理信息和图表容器）
                     const hasRateInfo = ratesHtml.length > 0;
                     const hasNetWorthData = details.netWorthData && details.netWorthData.length > 0;
@@ -3340,9 +3290,6 @@
                                 ${managerHtml}
                             </div>
                         `;
-                    }
-                    if (etfMetricsHtml) {
-                        detailsInfoHtml += etfMetricsHtml;
                     }
                     
                     let chartHtml = '';
@@ -3509,56 +3456,6 @@
             // 基金经理信息（已移除）
             let managerHtml = '';
             
-            // 构建ETF核心指标（如果是场内基金）
-            let etfMetricsHtml = '';
-            if (details.dataSource === 'tencent') {
-                const etfMetrics = [];
-                if (details.high52w) {
-                    etfMetrics.push(`
-                        <div class="fund-detail-item">
-                            <div class="fund-detail-label">52周最高</div>
-                            <div class="fund-detail-value">${details.high52w}</div>
-                        </div>
-                    `);
-                }
-                if (details.low52w) {
-                    etfMetrics.push(`
-                        <div class="fund-detail-item">
-                            <div class="fund-detail-label">52周最低</div>
-                            <div class="fund-detail-value">${details.low52w}</div>
-                        </div>
-                    `);
-                }
-                if (details.avgVolume) {
-                    etfMetrics.push(`
-                        <div class="fund-detail-item">
-                            <div class="fund-detail-label">日均成交量</div>
-                            <div class="fund-detail-value">${details.avgVolume}</div>
-                        </div>
-                    `);
-                }
-                if (details.totalReturn && details.totalReturn !== 'N/A') {
-                    etfMetrics.push(`
-                        <div class="fund-detail-item">
-                            <div class="fund-detail-label">总回报率</div>
-                            <div class="fund-detail-value">${details.totalReturn}</div>
-                        </div>
-                    `);
-                }
-                if (etfMetrics.length > 0) {
-                    etfMetricsHtml = `
-                        <div class="fund-details" style="margin-top: 15px;">
-                            <div class="fund-details-header">
-                                <h4>📈 核心指标</h4>
-                            </div>
-                            <div class="fund-details-grid">
-                                ${etfMetrics.join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-
             // 构建详情内容
             const hasRateInfo = ratesHtml.length > 0;
             const hasNetWorthData = details.netWorthData && details.netWorthData.length > 0;
@@ -3577,9 +3474,6 @@
                         ${managerHtml}
                     </div>
                 `;
-            }
-            if (etfMetricsHtml) {
-                detailsInfoHtml += etfMetricsHtml;
             }
             
             let chartHtml = '';
