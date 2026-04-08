@@ -70,6 +70,8 @@
         }
 
         .sort-controls {
+            position: relative;
+            z-index: 100;
             display: flex;
             gap: 10px;
             align-items: center;
@@ -88,6 +90,9 @@
             font-size: 14px;
             background: white;
             cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button;
             transition: all 0.3s;
         }
 
@@ -142,6 +147,9 @@
         .autocomplete-item {
             padding: 12px 16px;
             cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button;
             transition: background 0.2s;
             border-bottom: 1px solid #f0f0f0;
         }
@@ -203,6 +211,9 @@
             flex: 1;
             padding: 10px 20px;
             cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button;
             border: none;
             background: transparent;
             color: #666;
@@ -323,6 +334,9 @@
             font-size: 16px;
             font-weight: 500;
             cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button;
             transition: all 0.3s;
         }
 
@@ -960,6 +974,9 @@
             font-size: 28px;
             color: #999;
             cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button;
             padding: 0;
             width: 30px;
             height: 30px;
@@ -1083,6 +1100,9 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button;
             transition: all 0.2s;
         }
 
@@ -1105,18 +1125,6 @@
 
         @media (max-width: 900px) {
             .overview-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 1400px) {
-            .funds-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        @media (max-width: 1100px) {
-            .funds-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
@@ -1216,6 +1224,12 @@
                         <option value="default">默认顺序</option>
                         <option value="desc">涨跌幅从高到低</option>
                         <option value="asc">涨跌幅从低到高</option>
+                        <option value="marketValueDesc">持仓金额从高到低</option>
+                        <option value="marketValueAsc">持仓金额从低到高</option>
+                        <option value="profitRateDesc">收益率从高到低</option>
+                        <option value="profitRateAsc">收益率从低到高</option>
+                        <option value="profitAmountDesc">收益金额从高到低</option>
+                        <option value="profitAmountAsc">收益金额从低到高</option>
                     </select>
                 </div>
                 <div class="backup-controls">
@@ -1231,7 +1245,7 @@
             <div class="overview-card">
                 <div class="overview-header">
                     <h2>📊 投资总览</h2>
-                    <div class="overview-date">实时数据来自腾讯财经、东方财富、天天基金。数据更新时间: <span id="overviewUpdateTime">--</span></div>
+                    <div class="overview-date">实时数据来自东方财富、天天基金。数据更新时间: <span id="overviewUpdateTime">--</span></div>
                 </div>
                 <div class="overview-stats">
                     <div class="stat-item stat-primary">
@@ -1403,7 +1417,7 @@
         let charts = {};
         let historyData = {}; // 存储历史数据用于绘制图表
         let loadingFundCodes = new Set(); // 正在加载的基金代码集合
-        let sortOrder = 'default'; // 排序方式：default, desc, asc
+        let sortOrder = 'default'; // 排序方式：default, desc, asc, marketValueDesc, marketValueAsc, profitRateDesc, profitRateAsc, profitAmountDesc, profitAmountAsc
         let positions = {}; // 持仓数据：{ code: { transactions: [], totalShares, totalCost, avgCost } }
         let dailyRanges = {}; // 今日最高最低：{ code: { high, low } }
         let currentModalFundCode = null; // 当前操作的基金代码
@@ -3109,17 +3123,45 @@
                 codes = [...codes].sort((a, b) => {
                     const dataA = fundsData[a];
                     const dataB = fundsData[b];
-                    
+
                     // 如果数据还没加载完，保持原顺序
                     if (!dataA || !dataB) return 0;
-                    
-                    const percentageA = parseFloat(dataA.gszzl);
-                    const percentageB = parseFloat(dataB.gszzl);
-                    
-                    if (sortOrder === 'desc') {
-                        return percentageB - percentageA; // 降序：从高到低
-                    } else {
-                        return percentageA - percentageB; // 升序：从低到高
+
+                    // 获取持仓信息（用于持仓相关排序）
+                    const posInfoA = calculatePosition(a);
+                    const posInfoB = calculatePosition(b);
+
+                    switch (sortOrder) {
+                        case 'desc':
+                            return parseFloat(dataB.gszzl) - parseFloat(dataA.gszzl);
+                        case 'asc':
+                            return parseFloat(dataA.gszzl) - parseFloat(dataB.gszzl);
+                        case 'marketValueDesc':
+                            const valueA = posInfoA ? posInfoA.totalShares * parseFloat(dataA.gsz) : 0;
+                            const valueB = posInfoB ? posInfoB.totalShares * parseFloat(dataB.gsz) : 0;
+                            return valueB - valueA;
+                        case 'marketValueAsc':
+                            const valueA2 = posInfoA ? posInfoA.totalShares * parseFloat(dataA.gsz) : 0;
+                            const valueB2 = posInfoB ? posInfoB.totalShares * parseFloat(dataB.gsz) : 0;
+                            return valueA2 - valueB2;
+                        case 'profitRateDesc':
+                            const rateA = posInfoA ? ((parseFloat(dataA.gsz) - posInfoA.avgCost) / posInfoA.avgCost * 100) : -Infinity;
+                            const rateB = posInfoB ? ((parseFloat(dataB.gsz) - posInfoB.avgCost) / posInfoB.avgCost * 100) : -Infinity;
+                            return rateB - rateA;
+                        case 'profitRateAsc':
+                            const rateA2 = posInfoA ? ((parseFloat(dataA.gsz) - posInfoA.avgCost) / posInfoA.avgCost * 100) : Infinity;
+                            const rateB2 = posInfoB ? ((parseFloat(dataB.gsz) - posInfoB.avgCost) / posInfoB.avgCost * 100) : Infinity;
+                            return rateA2 - rateB2;
+                        case 'profitAmountDesc':
+                            const profitA = posInfoA ? (posInfoA.totalShares * parseFloat(dataA.gsz) - posInfoA.totalCost) : -Infinity;
+                            const profitB = posInfoB ? (posInfoB.totalShares * parseFloat(dataB.gsz) - posInfoB.totalCost) : -Infinity;
+                            return profitB - profitA;
+                        case 'profitAmountAsc':
+                            const profitA2 = posInfoA ? (posInfoA.totalShares * parseFloat(dataA.gsz) - posInfoA.totalCost) : Infinity;
+                            const profitB2 = posInfoB ? (posInfoB.totalShares * parseFloat(dataB.gsz) - posInfoB.totalCost) : Infinity;
+                            return profitA2 - profitB2;
+                        default:
+                            return 0;
                     }
                 });
             }
@@ -3170,7 +3212,10 @@
                         <div class="position-info">
                             <div class="position-header">
                                 <h4>💼 持仓信息 
-                                    <span style="cursor: pointer; color: #667eea; font-size: 13px; margin-left: 8px;" onclick="openTransactionHistoryModal('${code}')" title="查看交易历史">
+                                    <span style="cursor: pointer;
+            vertical-align: middle;
+            appearance: menulist-button;
+            -webkit-appearance: menulist-button; color: #667eea; font-size: 13px; margin-left: 8px;" onclick="openTransactionHistoryModal('${code}')" title="查看交易历史">
                                         📋 ${posInfo.transactions.length}笔
                                     </span>
                                 </h4>
