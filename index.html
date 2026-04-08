@@ -3499,7 +3499,29 @@
                             </div>
                         `);
                     }
-                    
+
+                    // 添加MA180指标到核心指标
+                    if (details.netWorthData && details.netWorthData.length > 0) {
+                        const netWorthValues = details.netWorthData.map(item => item.y || item[1] || 0).filter(v => v > 0);
+                        const maPeriod = Math.min(180, netWorthValues.length);
+                        const recentValues = netWorthValues.slice(-maPeriod);
+                        const currentMA180 = recentValues.reduce((a, b) => a + b, 0) / recentValues.length;
+                        const currentValue = netWorthValues[netWorthValues.length - 1];
+                        const comparePercent = ((currentValue - currentMA180) / currentMA180 * 100);
+                        const compareClass = comparePercent >= 0 ? 'positive' : 'negative';
+                        const compareSymbol = comparePercent >= 0 ? '+' : '';
+
+                        ratesHtml.push(`
+                            <div class="fund-detail-item">
+                                <div class="fund-detail-label">MA180</div>
+                                <div class="fund-detail-value">${currentMA180.toFixed(4)}</div>
+                            </div>
+                            <div class="fund-detail-item">
+                                <div class="fund-detail-label">当前净值对比MA180</div>
+                                <div class="fund-detail-value ${compareClass}">${compareSymbol}${comparePercent.toFixed(2)}%</div>
+                            </div>
+                        `);
+                    }                    
                     // 基金经理信息（已移除）
                     let managerHtml = '';
                     
@@ -3513,7 +3535,7 @@
                         detailsInfoHtml += `
                             <div class="fund-details">
                                 <div class="fund-details-header">
-                                    <h4>📊 历史收益率</h4>
+                                    <h4>📊 基金核心指标</h4>
                                 </div>
                                 <div class="fund-details-grid">
                                     ${ratesHtml.join('')}
@@ -3522,7 +3544,7 @@
                             </div>
                         `;
                     }
-                    
+
                     let chartHtml = '';
                     if (hasNetWorthData) {
                         chartHtml = `
@@ -3697,7 +3719,7 @@
                 detailsInfoHtml += `
                     <div class="fund-details">
                         <div class="fund-details-header">
-                            <h4>📊 历史收益率</h4>
+                            <h4>📊 基金核心指标</h4>
                         </div>
                         <div class="fund-details-grid">
                             ${ratesHtml.join('')}
@@ -3707,6 +3729,7 @@
                 `;
             }
             
+
             let chartHtml = '';
             if (hasNetWorthData) {
                 chartHtml = `
@@ -4118,7 +4141,7 @@
                         },
                         title: {
                             display: true,
-                            text: `单位净值走势（近180天）- MA${maPeriod}（近${maPeriod}日平均净值）`,
+                            text: `近180天单位净值走势 - MA${maPeriod}`,
                             font: {
                                 size: 14,
                                 weight: 'bold'
@@ -4337,8 +4360,8 @@
                 fetchFundData(code);
             });
 
-            // 每30秒刷新一次数据
-            setInterval(refreshAllFunds, 30000);
+            // 每60秒刷新一次数据
+            setInterval(refreshAllFunds, 60000);
             
             // 每天凌晨2点自动更新基金列表
             setInterval(() => {
