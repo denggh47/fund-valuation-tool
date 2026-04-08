@@ -70,8 +70,6 @@
         }
 
         .sort-controls {
-            position: relative;
-            z-index: 100;
             display: flex;
             gap: 10px;
             align-items: center;
@@ -90,9 +88,6 @@
             font-size: 14px;
             background: white;
             cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button;
             transition: all 0.3s;
         }
 
@@ -147,9 +142,6 @@
         .autocomplete-item {
             padding: 12px 16px;
             cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button;
             transition: background 0.2s;
             border-bottom: 1px solid #f0f0f0;
         }
@@ -211,9 +203,6 @@
             flex: 1;
             padding: 10px 20px;
             cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button;
             border: none;
             background: transparent;
             color: #666;
@@ -334,9 +323,6 @@
             font-size: 16px;
             font-weight: 500;
             cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button;
             transition: all 0.3s;
         }
 
@@ -974,9 +960,6 @@
             font-size: 28px;
             color: #999;
             cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button;
             padding: 0;
             width: 30px;
             height: 30px;
@@ -1100,9 +1083,6 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button;
             transition: all 0.2s;
         }
 
@@ -2512,15 +2492,92 @@
             script.id = `fund-script-${code}`;
             script.src = `https://fundgz.1234567.com.cn/js/${code}.js?t=${Date.now()}`;
             script.onerror = () => {
-                console.error(`加载基金 ${code} 数据失败`);
-                alert(`加载基金 ${code} 数据失败，请检查基金代码是否正确`);
-                loadingFundCodes.delete(code);
-                removeFund(code, true); // 跳过确认对话框
+                console.error(`加载基金 ${code} 数据失败，尝试备用数据源`);
+                fetchBackupFundData(code);
             };
             document.body.appendChild(script);
             
             // 同时获取基金详细信息
             fetchFundDetails(code);
+        }
+        // 备用数据源：使用东方财富接口获取基金数据
+        async function fetchBackupFundData(code) {
+            console.log(`[fetchBackupFundData] 尝试备用数据源获取基金 ${code}`);
+
+            try {
+                const eastmoneyUrl = PROXY_BASE_URL ? `${PROXY_BASE_URL}/api/fund/detail?code=${code}` : `https://fund.eastmoney.com/pingzhongdata/${code}.js?t=${Date.now()}`;
+                console.log(`[fetchBackupFundData] 尝试东方财富接口: ${eastmoneyUrl}`);
+
+                const response = await fetch(eastmoneyUrl);
+                const text = await response.text();
+
+                // 解析东方财富数据
+                const nameMatch = text.match(/var fS_name = "([^"]+)"/);
+                const codeMatch = text.match(/var fS_code = "([^"]+)"/);
+
+                if (nameMatch && codeMatch) {
+                    const name = nameMatch[1];
+                    let gszzl = '0.00';
+                    let gsz = '1.0000';
+                    let dwjz = '1.0000';
+
+                    // 尝试从 Data_netWorthTrend 获取最新净值和涨跌幅
+                    const netWorthMatch = text.match(/var Data_netWorthTrend = (\[[\s\S]*?\]);/);
+                    if (netWorthMatch) {
+                        try {
+                            const netWorthData = JSON.parse(netWorthMatch[1]);
+                            if (netWorthData && netWorthData.length > 0) {
+                                const latest = netWorthData[netWorthData.length - 1];
+                                const prev = netWorthData.length > 1 ? netWorthData[netWorthData.length - 2] : latest;
+
+                                if (latest.y) {
+                                    gsz = latest.y.toFixed(4);
+                                }
+                                if (prev.y) {
+                                    dwjz = prev.y.toFixed(4);
+                                }
+                                if (latest.equityReturn !== undefined && latest.equityReturn !== '') {
+                                    gszzl = parseFloat(latest.equityReturn).toFixed(2);
+                                } else if (latest.y && prev.y) {
+                                    const change = ((latest.y - prev.y) / prev.y * 100);
+                                    gszzl = change.toFixed(2);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('解析净值趋势数据失败:', e);
+                        }
+                    }
+
+                    // 获取最新净值日期
+                    let jzrq = new Date().toLocaleDateString('zh-CN');
+                    const jzrqMatch = text.match(/var fS_jzrq = "([^"]+)"/);
+                    if (jzrqMatch) {
+                        jzrq = jzrqMatch[1];
+                    }
+
+                    const fundData = {
+                        fundcode: code,
+                        name: name,
+                        gsz: gsz,
+                        dwjz: dwjz,
+                        gszzl: gszzl,
+                        gztime: new Date().toLocaleTimeString('zh-CN'),
+                        jzrq: jzrq,
+                        dataSource: 'eastmoney'
+                    };
+
+                    console.log(`[fetchBackupFundData] 成功获取基金 ${code} 数据:`, fundData);
+                    window.jsonpgz(fundData);
+                    loadingFundCodes.delete(code);
+                    return;
+                }
+            } catch (error) {
+                console.error(`[fetchBackupFundData] 东方财富接口失败:`, error);
+            }
+
+            // 所有数据源都失败，使用占位数据
+            console.error(`[fetchBackupFundData] 所有数据源都失败，基金 ${code}`);
+            loadingFundCodes.delete(code);
         }
 
         // 处理基金详细信息加载队列
@@ -2941,17 +2998,11 @@
             // 验证数据是否有效
             if (!data || !data.fundcode || !data.name || !data.gszzl || !data.dwjz || !data.gsz) {
                 // 尝试找出是哪个基金的数据有问题
-                // 如果只有一个正在加载，就是它
-                if (loadingFundCodes.size === 1) {
+                if (loadingFundCodes.size >= 1) {
                     const code = Array.from(loadingFundCodes)[0];
-                    console.error(`基金 ${code} 数据不完整或无效`);
-                    alert(`基金代码 ${code} 的数据有问题，可能该基金不支持实时估值或代码错误`);
-                    loadingFundCodes.delete(code);
-                    removeFund(code, true); // 跳过确认对话框
-                } else if (loadingFundCodes.size > 1) {
-                    // 多个同时加载时无法确定是哪个，显示通用提示
-                    console.error('某个基金数据不完整或无效');
-                    alert('有基金数据加载失败，可能该基金不支持实时估值');
+                    console.warn(`基金 ${code} 主数据源返回无效数据，尝试备用数据源`);
+                    // 尝试备用数据源
+                    fetchBackupFundData(code);
                 }
                 return;
             }
@@ -3123,45 +3174,17 @@
                 codes = [...codes].sort((a, b) => {
                     const dataA = fundsData[a];
                     const dataB = fundsData[b];
-
+                    
                     // 如果数据还没加载完，保持原顺序
                     if (!dataA || !dataB) return 0;
-
-                    // 获取持仓信息（用于持仓相关排序）
-                    const posInfoA = calculatePosition(a);
-                    const posInfoB = calculatePosition(b);
-
-                    switch (sortOrder) {
-                        case 'desc':
-                            return parseFloat(dataB.gszzl) - parseFloat(dataA.gszzl);
-                        case 'asc':
-                            return parseFloat(dataA.gszzl) - parseFloat(dataB.gszzl);
-                        case 'marketValueDesc':
-                            const valueA = posInfoA ? posInfoA.totalShares * parseFloat(dataA.gsz) : 0;
-                            const valueB = posInfoB ? posInfoB.totalShares * parseFloat(dataB.gsz) : 0;
-                            return valueB - valueA;
-                        case 'marketValueAsc':
-                            const valueA2 = posInfoA ? posInfoA.totalShares * parseFloat(dataA.gsz) : 0;
-                            const valueB2 = posInfoB ? posInfoB.totalShares * parseFloat(dataB.gsz) : 0;
-                            return valueA2 - valueB2;
-                        case 'profitRateDesc':
-                            const rateA = posInfoA ? ((parseFloat(dataA.gsz) - posInfoA.avgCost) / posInfoA.avgCost * 100) : -Infinity;
-                            const rateB = posInfoB ? ((parseFloat(dataB.gsz) - posInfoB.avgCost) / posInfoB.avgCost * 100) : -Infinity;
-                            return rateB - rateA;
-                        case 'profitRateAsc':
-                            const rateA2 = posInfoA ? ((parseFloat(dataA.gsz) - posInfoA.avgCost) / posInfoA.avgCost * 100) : Infinity;
-                            const rateB2 = posInfoB ? ((parseFloat(dataB.gsz) - posInfoB.avgCost) / posInfoB.avgCost * 100) : Infinity;
-                            return rateA2 - rateB2;
-                        case 'profitAmountDesc':
-                            const profitA = posInfoA ? (posInfoA.totalShares * parseFloat(dataA.gsz) - posInfoA.totalCost) : -Infinity;
-                            const profitB = posInfoB ? (posInfoB.totalShares * parseFloat(dataB.gsz) - posInfoB.totalCost) : -Infinity;
-                            return profitB - profitA;
-                        case 'profitAmountAsc':
-                            const profitA2 = posInfoA ? (posInfoA.totalShares * parseFloat(dataA.gsz) - posInfoA.totalCost) : Infinity;
-                            const profitB2 = posInfoB ? (posInfoB.totalShares * parseFloat(dataB.gsz) - posInfoB.totalCost) : Infinity;
-                            return profitA2 - profitB2;
-                        default:
-                            return 0;
+                    
+                    const percentageA = parseFloat(dataA.gszzl);
+                    const percentageB = parseFloat(dataB.gszzl);
+                    
+                    if (sortOrder === 'desc') {
+                        return percentageB - percentageA; // 降序：从高到低
+                    } else {
+                        return percentageA - percentageB; // 升序：从低到高
                     }
                 });
             }
@@ -3212,10 +3235,7 @@
                         <div class="position-info">
                             <div class="position-header">
                                 <h4>💼 持仓信息 
-                                    <span style="cursor: pointer;
-            vertical-align: middle;
-            appearance: menulist-button;
-            -webkit-appearance: menulist-button; color: #667eea; font-size: 13px; margin-left: 8px;" onclick="openTransactionHistoryModal('${code}')" title="查看交易历史">
+                                    <span style="cursor: pointer; color: #667eea; font-size: 13px; margin-left: 8px;" onclick="openTransactionHistoryModal('${code}')" title="查看交易历史">
                                         📋 ${posInfo.transactions.length}笔
                                     </span>
                                 </h4>
