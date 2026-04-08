@@ -18,11 +18,11 @@
             background: linear-gradient(135deg, #F0F8FF 0%, #FAF0E6 200%);
             min-height: 100vh;
             padding: 20px;
-            zoom: 0.85;
+            zoom: 0.8;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1920px;
             margin: 0 auto;
         }
 
@@ -1109,6 +1109,18 @@
             }
         }
 
+        @media (max-width: 1400px) {
+            .funds-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .funds-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
         @media (max-width: 768px) {
             .funds-grid {
                 grid-template-columns: 1fr;
@@ -1219,7 +1231,7 @@
             <div class="overview-card">
                 <div class="overview-header">
                     <h2>📊 投资总览</h2>
-                    <div class="overview-date">实时数据来自东方财富、天天基金。数据更新时间: <span id="overviewUpdateTime">--</span></div>
+                    <div class="overview-date">实时数据来自腾讯财经、东方财富、天天基金。数据更新时间: <span id="overviewUpdateTime">--</span></div>
                 </div>
                 <div class="overview-stats">
                     <div class="stat-item stat-primary">
