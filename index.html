@@ -18,7 +18,7 @@
             background: linear-gradient(135deg, #F0F8FF 0%, #FAF0E6 200%);
             min-height: 100vh;
             padding: 20px;
-            zoom: 0.8;
+            zoom: 0.77;
         }
 
         .container {
@@ -246,6 +246,55 @@
             }
         }
 
+        /* 基金板块选项卡样式 */
+        .fund-section-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: flex-start;
+        }
+
+        .section-tab {
+            padding: 12px 24px;
+            border: none;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 17px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-tab:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .section-tab.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        /* 数量气泡样式 */
+        .count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            background: #ff4d4f;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 10px;
+            margin-left: 4px;
+        }
+
         /* 基金详细信息样式 */
         .fund-details {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -468,7 +517,7 @@
         }
 
         .stat-label {
-            font-size: 16px;
+            font-size: 17px;
             color: #666;
             margin-bottom: 8px;
             font-weight: 500;
@@ -1225,7 +1274,7 @@
             <div class="overview-card">
                 <div class="overview-header">
                     <h2>📊 投资总览</h2>
-                    <div class="overview-date">实时数据来自东方财富、天天基金。数据更新时间: <span id="overviewUpdateTime">--</span></div>
+                    <div class="overview-date">数据来自腾讯财经、新浪财经、东方财富、天天基金。数据更新时间: <span id="overviewUpdateTime">--</span></div>
                 </div>
                 <div class="overview-stats">
                     <div class="stat-item stat-primary">
@@ -1252,6 +1301,15 @@
             </div>
         </div>
 
+        <!-- 基金板块选项卡 -->
+        <div class="fund-section-tabs">
+            <button class="section-tab active" data-section="holding" onclick="switchSection('holding')">
+                👜 持仓 <span class="count-badge" id="holdingCount">0</span>
+            </button>
+            <button class="section-tab" data-section="watchlist" onclick="switchSection('watchlist')">
+                👁 自选 <span class="count-badge" id="watchlistCount">0</span>
+            </button>
+        </div>
         <div id="fundsContainer" class="funds-grid"></div>
     </div>
 
@@ -1399,6 +1457,7 @@
         let loadingFundCodes = new Set(); // 正在加载的基金代码集合
         let sortOrder = 'default'; // 排序方式：default, desc, asc, marketValueDesc, marketValueAsc, profitRateDesc, profitRateAsc, profitAmountDesc, profitAmountAsc
         let positions = {}; // 持仓数据：{ code: { transactions: [], totalShares, totalCost, avgCost } }
+        let currentSection = 'holding'; // 当前显示的板块: 'holding' 或 'watchlist'
         let dailyRanges = {}; // 今日最高最低：{ code: { high, low } }
         let currentModalFundCode = null; // 当前操作的基金代码
         let currentAvailableShares = 0; // 当前可卖出份额
@@ -3078,6 +3137,21 @@
             }
         }
 
+
+        // 切换基金板块
+        function switchSection(section) {
+            currentSection = section;
+
+            // 更新选项卡样式
+            document.querySelectorAll('.section-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.section === section);
+            });
+
+            // 重新渲染基金列表
+            renderFunds();
+
+            console.log(`[switchSection] 切换到板块: ${section}`);
+        }
         // 更新总览看板
         function updateOverviewPanel() {
             const codes = loadFundCodes();
@@ -3169,6 +3243,38 @@
                 return;
             }
 
+            // 根据持仓信息将基金分组
+            const holdingCodes = [];
+            const watchlistCodes = [];
+
+            codes.forEach(code => {
+                const posInfo = calculatePosition(code);
+                if (posInfo && posInfo.totalShares > 0) {
+                    holdingCodes.push(code);
+                } else {
+                    watchlistCodes.push(code);
+                }
+            });
+
+            // 更新选项卡计数
+            document.getElementById('holdingCount').textContent = holdingCodes.length;
+            document.getElementById('watchlistCount').textContent = watchlistCodes.length;
+
+            // 根据当前板块选择要显示的基金
+            codes = currentSection === 'holding' ? holdingCodes : watchlistCodes;
+
+            // 如果当前板块为空，显示提示
+            if (codes.length === 0) {
+                const sectionName = currentSection === 'holding' ? '持仓' : '自选';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>暂无${sectionName}基金</h2>
+                        <p>${currentSection === 'holding' ? '添加基金并进行买入操作后，基金会显示在这里' : '添加基金到自选列表后，基金会显示在这里'}</p>
+                    </div>
+                `;
+                return;
+            }
+
             // 根据排序方式对基金代码进行排序
             if (sortOrder !== 'default') {
                 codes = [...codes].sort((a, b) => {
@@ -3185,6 +3291,54 @@
                         return percentageB - percentageA; // 降序：从高到低
                     } else {
                         return percentageA - percentageB; // 升序：从低到高
+                    }
+                });
+            }
+
+            // 根据排序方式对选中的基金代码进行排序
+            if (sortOrder !== 'default') {
+                codes = [...codes].sort((a, b) => {
+                    const dataA = fundsData[a];
+                    const dataB = fundsData[b];
+
+                    // 如果数据还没加载完，保持原顺序
+                    if (!dataA || !dataB) return 0;
+
+                    // 获取持仓信息（用于持仓相关排序）
+                    const posInfoA = calculatePosition(a);
+                    const posInfoB = calculatePosition(b);
+
+                    switch (sortOrder) {
+                        case 'desc':
+                            return parseFloat(dataB.gszzl) - parseFloat(dataA.gszzl);
+                        case 'asc':
+                            return parseFloat(dataA.gszzl) - parseFloat(dataB.gszzl);
+                        case 'marketValueDesc':
+                            const valueA = posInfoA ? posInfoA.totalShares * parseFloat(dataA.gsz) : 0;
+                            const valueB = posInfoB ? posInfoB.totalShares * parseFloat(dataB.gsz) : 0;
+                            return valueB - valueA;
+                        case 'marketValueAsc':
+                            const valueA2 = posInfoA ? posInfoA.totalShares * parseFloat(dataA.gsz) : 0;
+                            const valueB2 = posInfoB ? posInfoB.totalShares * parseFloat(dataB.gsz) : 0;
+                            return valueA2 - valueB2;
+                        case 'profitRateDesc':
+                            const rateA = posInfoA ? ((parseFloat(dataA.gsz) - posInfoA.avgCost) / posInfoA.avgCost * 100) : -Infinity;
+                            const rateB = posInfoB ? ((parseFloat(dataB.gsz) - posInfoB.avgCost) / posInfoB.avgCost * 100) : -Infinity;
+                            return rateB - rateA;
+                        case 'profitRateAsc':
+                            const rateA2 = posInfoA ? ((parseFloat(dataA.gsz) - posInfoA.avgCost) / posInfoA.avgCost * 100) : Infinity;
+                            const rateB2 = posInfoB ? ((parseFloat(dataB.gsz) - posInfoB.avgCost) / posInfoB.avgCost * 100) : Infinity;
+                            return rateA2 - rateB2;
+                        case 'profitAmountDesc':
+                            const profitA = posInfoA ? (posInfoA.totalShares * parseFloat(dataA.gsz) - posInfoA.totalCost) : -Infinity;
+                            const profitB = posInfoB ? (posInfoB.totalShares * parseFloat(dataB.gsz) - posInfoB.totalCost) : -Infinity;
+                            return profitB - profitA;
+                        case 'profitAmountAsc':
+                            const profitA2 = posInfoA ? (posInfoA.totalShares * parseFloat(dataA.gsz) - posInfoA.totalCost) : Infinity;
+                            const profitB2 = posInfoB ? (posInfoB.totalShares * parseFloat(dataB.gsz) - posInfoB.totalCost) : Infinity;
+                            return profitA2 - profitB2;
+                        default:
+                            return 0;
                     }
                 });
             }
@@ -4183,8 +4337,8 @@
                 fetchFundData(code);
             });
 
-            // 每60秒刷新一次数据
-            setInterval(refreshAllFunds, 60000);
+            // 每30秒刷新一次数据
+            setInterval(refreshAllFunds, 30000);
             
             // 每天凌晨2点自动更新基金列表
             setInterval(() => {
