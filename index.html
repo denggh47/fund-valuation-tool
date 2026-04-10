@@ -115,12 +115,78 @@
             color: #999;
         }
 
+        .sync-status.offline::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #999;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .sync-status.online {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .sync-status.online::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #52c41a;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 4px rgba(82, 196, 26, 0.6);
+        }
+
+        .sync-status.error {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+
+        .sync-status.error::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #ff4d4f;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 4px rgba(255, 77, 79, 0.6);
+        }
+
+        .sync-status.synced {
+            background: #e6f7e6;
+            color: #52c41a;
+        }
+
+        .sync-status.synced::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #52c41a;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 4px rgba(82, 196, 26, 0.6);
+        }
+
         .sync-status .sync-icon {
             width: 16px;
             height: 16px;
+            display: none;
         }
 
         .sync-status.syncing .sync-icon {
+            display: block;
+            animation: spin 1s linear infinite;
+        }
+
+        .sync-status.syncing::before,
+        .sync-status.syncing .sync-icon {
+            display: none;
+        }
+
+        .sync-status.syncing .sync-icon {
+            display: block;
             animation: spin 1s linear infinite;
         }
 
@@ -1780,7 +1846,7 @@
         <div class="header">
             <h1>📈 基金实时估值看板</h1>
             <div class="sync-status offline" id="syncStatus" onclick="openSyncConfig()">
-                <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg class="sync-icon" id="syncIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
                 <span id="syncStatusText">未配置同步</span>
@@ -2913,9 +2979,19 @@
         function updateSyncStatus(status, message) {
             const statusEl = document.getElementById('syncStatus');
             const textEl = document.getElementById('syncStatusText');
+            const iconEl = document.getElementById('syncIcon');
 
             statusEl.className = 'sync-status ' + status;
             textEl.textContent = message;
+
+            // 只有 syncing 状态显示旋转图标，其他状态显示指示灯
+            if (iconEl) {
+                if (status === 'syncing') {
+                    iconEl.style.display = 'block';
+                } else {
+                    iconEl.style.display = 'none';
+                }
+            }
         }
 
         // 初始化云同步
@@ -2931,7 +3007,7 @@
                 return;
             }
 
-            updateSyncStatus('online', '已连接');
+            updateSyncStatus('online', '同步服务正常');
         }
 
         // 压缩历史数据（只保留最近90天）
