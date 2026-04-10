@@ -2175,7 +2175,7 @@
             
             // 清空队列
             fundDetailsQueue = [];
-            isLoadingFundDetails = false;
+            // isLoadingFundDetails = false; // 旧逻辑，已废弃
             console.log('加载队列已清空');
             
             console.log(`完成！共删除 ${keysToRemove.length} 个缓存项`);
@@ -3008,8 +3008,59 @@
             }
 
             updateSyncStatus('online', '同步服务正常');
+
+            // 启动定时检查连接状态（每60秒）
+            startConnectionHealthCheck();
         }
 
+
+        // 连接健康检查定时器
+        let connectionCheckInterval = null;
+
+        // 检查 Firebase 连接状态
+        async function checkFirebaseConnection() {
+            if (!syncUserId || !window.firebaseDB) {
+                return;
+            }
+
+            try {
+                // 尝试获取文档来验证连接
+                const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
+                await window.firebaseGetDoc(docRef);
+                // 连接正常
+                updateSyncStatus('online', '同步服务正常');
+            } catch (error) {
+                console.warn('[CloudSync] 连接检查失败:', error.message);
+                if (error.code === 'unavailable' || error.code === 'network-request-failed') {
+                    updateSyncStatus('error', '网络连接异常');
+                } else if (error.code === 'permission-denied') {
+                    updateSyncStatus('error', '权限不足');
+                } else {
+                    // 其他错误（如文档不存在）也算连接正常
+                    updateSyncStatus('online', '同步服务正常');
+                }
+            }
+        }
+
+        // 启动定时检查
+        function startConnectionHealthCheck() {
+            // 清除已有的定时器
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+            }
+            // 每60秒检查一次
+            connectionCheckInterval = setInterval(() => {
+                checkFirebaseConnection();
+            }, 60000);
+        }
+
+        // 停止定时检查
+        function stopConnectionHealthCheck() {
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+                connectionCheckInterval = null;
+            }
+        }
         // 压缩历史数据（只保留最近90天）
         function trimHistoryDataForUpload(data) {
             const trimmed = {};
@@ -3781,168 +3832,263 @@
         }
 
         // 处理基金详细信息加载队列
+        // 基金并行加载计数器
+        let concurrentLoadingCount = 0;
+        const MAX_CONCURRENT_LOADS = 3; // 最多同时加载3个基金
+
+        // 处理基金详细信息加载队列（支持并行）
         function processFundDetailsQueue() {
-            if (isLoadingFundDetails || fundDetailsQueue.length === 0) {
+            // 如果队列空了，重置计数器
+            if (fundDetailsQueue.length === 0) {
+                concurrentLoadingCount = 0;
                 return;
             }
-            
+
+            // 如果并发数已达上限，等待
+            if (concurrentLoadingCount >= MAX_CONCURRENT_LOADS) {
+                console.log(`[processFundDetailsQueue] 并发加载数已达上限(${MAX_CONCURRENT_LOADS})，等待...`);
+                return;
+            }
+
             const { code, skipRender } = fundDetailsQueue.shift();
-            isLoadingFundDetails = true;
-            
-            console.log(`[processFundDetailsQueue] 开始加载基金 ${code}，队列剩余: ${fundDetailsQueue.length}`);
+            concurrentLoadingCount++;
+
+            console.log(`[processFundDetailsQueue] 开始加载基金 ${code}，队列剩余: ${fundDetailsQueue.length}，当前并发: ${concurrentLoadingCount}`);
+
+            // 使用超时保护加载
+            const timeoutMs = 8000; // 8秒超时
+            let isCompleted = false;
+
+            // 检查是否加载完成的轮询
+            const checkComplete = setInterval(() => {
+                if (isCompleted) {
+                    clearInterval(checkComplete);
+                    return;
+                }
+                // 检查是否加载完成（有净值数据）
+                if (fundDetails[code] && fundDetails[code].netWorthData && fundDetails[code].netWorthData.length > 0) {
+                    isCompleted = true;
+                    clearInterval(checkComplete);
+                    onLoadComplete();
+                }
+            }, 100);
+
+            // 8秒后强制完成
+            const timeoutTimer = setTimeout(() => {
+                if (!isCompleted) {
+                    isCompleted = true;
+                    clearInterval(checkComplete);
+                    console.warn(`[processFundDetailsQueue] 基金 ${code} 加载超时`);
+                    onLoadComplete();
+                }
+            }, timeoutMs);
+
+            function onLoadComplete() {
+                clearTimeout(timeoutTimer);
+                concurrentLoadingCount--;
+                console.log(`[processFundDetailsQueue] 基金 ${code} 加载完成，当前并发: ${concurrentLoadingCount}`);
+                // 继续处理队列
+                setTimeout(() => processFundDetailsQueue(), 50);
+            }
+
+            // 启动加载
             fetchFundDetailsInternal(code, skipRender);
+
+            // 继续处理队列中的下一个（如果有空位）
+            if (fundDetailsQueue.length > 0 && concurrentLoadingCount < MAX_CONCURRENT_LOADS) {
+                setTimeout(() => processFundDetailsQueue(), 100);
+            }
         }
-        
+
         // 将基金详细信息加载请求加入队列
         function fetchFundDetails(code, skipRender = false) {
             console.log(`[fetchFundDetails] 基金 ${code} 加入加载队列`);
-            
+
             // 检查是否已在队列中
             const exists = fundDetailsQueue.some(item => item.code === code);
-            if (!exists) {
-                fundDetailsQueue.push({ code, skipRender });
-                console.log(`[fetchFundDetails] 基金 ${code} 已加入队列，队列长度: ${fundDetailsQueue.length}`);
-            } else {
+            if (exists) {
                 console.log(`[fetchFundDetails] 基金 ${code} 已在队列中，跳过`);
+                return;
             }
-            
+
+            // 检查缓存，如果缓存有效且未过期，直接使用缓存
+            const cached = localStorage.getItem(`fundDetail_${code}`);
+            if (cached && !skipRender) {
+                try {
+                    const cacheData = JSON.parse(cached);
+                    const now = Date.now();
+                    const oneDay = 24 * 60 * 60 * 1000;
+
+                    // 缓存未过期（1天内）且有净值数据
+                    if (now - cacheData.timestamp < oneDay &&
+                        cacheData.data &&
+                        cacheData.data.netWorthData &&
+                        cacheData.data.netWorthData.length > 0) {
+                        console.log(`[fetchFundDetails] 基金 ${code} 缓存有效，直接使用`);
+                        fundDetails[code] = cacheData.data;
+                        // 异步更新UI
+                        setTimeout(() => {
+                            const updated = updateFundDetailsTab(code);
+                            if (!updated) renderFunds();
+                        }, 0);
+                        return;
+                    }
+                } catch (e) {
+                    console.error(`[fetchFundDetails] 解析缓存失败:`, e);
+                }
+            }
+
+            fundDetailsQueue.push({ code, skipRender });
+            console.log(`[fetchFundDetails] 基金 ${code} 已加入队列，队列长度: ${fundDetailsQueue.length}`);
+
             // 开始处理队列
             processFundDetailsQueue();
         }
-        
-        // 内部函数：实际加载基金详细信息
-        // 获取ETF详细信息（历史K线数据）
-        async function fetchETFDetails(code, skipRender = false) {
-            console.log(`[fetchETFDetails] 开始获取ETF ${code} 的详细信息`);
+async function fetchETFDetails(code, skipRender = false) {
+    console.log(`[fetchETFDetails] 开始获取ETF ${code} 的详细信息`);
 
-            const prefix = getExchangePrefix(code);
-            const fullCode = `${prefix}${code}`;
+    const prefix = getExchangePrefix(code);
+    const fullCode = `${prefix}${code}`;
+    let cacheDisplayed = false;
 
-            try {
-                // 获取240个交易日数据（约1年）
-                // 优先使用代理服务器，如果配置了 PROXY_BASE_URL
-                const url = PROXY_BASE_URL
-                    ? `${PROXY_BASE_URL}/api/etf/kline?code=${fullCode}&days=240`
-                    : `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param=${fullCode},day,,,240,qfq&r=0.${Date.now()}`;
-
-                console.log(`[fetchETFDetails] 请求URL: ${url}`);
-                const response = await fetch(url);
-                const arrayBuffer = await response.arrayBuffer();
-                const text = decodeGBK(arrayBuffer);
-
-                // 解析JSONP格式
-                const jsonStr = text.replace('kline_dayqfq=', '');
-                const data = JSON.parse(jsonStr);
-
-                if (!data.data || !data.data[fullCode]) {
-                    throw new Error('ETF K线数据格式错误');
-                }
-
-                // 支持 qfqday 或 day 字段
-                const klineData = data.data[fullCode].qfqday || data.data[fullCode].day;
-                if (!klineData) {
-                    throw new Error('ETF K线数据格式错误：找不到 day 或 qfqday 字段');
-                }
-                console.log(`[fetchETFDetails] ETF ${code} 获取到 ${klineData.length} 条K线数据`);
-
-                // 转换为与场外基金兼容的格式
-                const netWorthData = klineData.map(item => ({
-                    x: new Date(item[0]).getTime(),
-                    y: parseFloat(item[2]) // 收盘价作为净值
-                }));
-
-                // 计算历史收益率（基于收盘价）
-                const currentPrice = parseFloat(klineData[klineData.length - 1][2]);
-                const getPriceDaysAgo = (days) => {
-                    const index = klineData.length - 1 - days;
-                    return index >= 0 ? parseFloat(klineData[index][2]) : null;
-                };
-
-                // 计算不同周期的收益率 (约20交易日/月)
-                const price1m = getPriceDaysAgo(20);
-                const price3m = getPriceDaysAgo(60);
-                const price6m = getPriceDaysAgo(120);
-                const price1y = getPriceDaysAgo(240);
-
-                const syl_1y = price1m ? ((currentPrice - price1m) / price1m * 100).toFixed(2) : '';
-                const syl_3y = price3m ? ((currentPrice - price3m) / price3m * 100).toFixed(2) : '';
-                const syl_6y = price6m ? ((currentPrice - price6m) / price6m * 100).toFixed(2) : '';
-                const syl_1n = price1y ? ((currentPrice - price1y) / price1y * 100).toFixed(2) : '';
-
-                // 计算其他核心指标
-                const high52w = Math.max(...klineData.map(item => parseFloat(item[3]))); // 最高价
-                const low52w = Math.min(...klineData.map(item => parseFloat(item[4])));  // 最低价
-                const totalVolume = klineData.slice(-20).reduce((sum, item) => sum + parseFloat(item[5]), 0); // 近20日总成交量
-
-                fundDetails[code] = {
-                    name: fundsData[code]?.name || code,
-                    code: code,
-                    netWorthData: netWorthData,
-                    sourceRate: '',
-                    currentRate: '',
-                    minAmount: '',
-                    managers: [],
-                    dataSource: 'tencent',
-                    // 历史收益率
-                    syl_1y: syl_1y,
-                    syl_3y: syl_3y,
-                    syl_6y: syl_6y,
-                    syl_1n: syl_1n,
-                    // 其他核心指标
-                    high52w: high52w.toFixed(2),
-                    low52w: low52w.toFixed(2),
-                    avgVolume: (totalVolume / 20 / 10000).toFixed(2) + '万', // 日均成交量（万股）
-                    totalReturn: price1y ? ((currentPrice - parseFloat(klineData[0][2])) / parseFloat(klineData[0][2]) * 100).toFixed(2) + '%' : 'N/A'
-                };
-
-                // 缓存到localStorage
-                localStorage.setItem(`fundDetail_${code}`, JSON.stringify({
-                    data: fundDetails[code],
-                    timestamp: Date.now()
-                }));
-
+    // 第一步：立即显示缓存（无论是否过期）
+    const cached = localStorage.getItem(`fundDetail_${code}`);
+    if (cached) {
+        try {
+            const cacheData = JSON.parse(cached);
+            if (cacheData.data && cacheData.data.netWorthData && cacheData.data.netWorthData.length > 0) {
+                console.log(`[fetchETFDetails] ETF ${code} 先显示缓存数据`);
+                fundDetails[code] = cacheData.data;
                 if (!skipRender) {
-                    const updated = updateFundDetailsTab(code);
-                    if (!updated) {
-                        renderFunds();
-                    }
+                    setTimeout(() => {
+                        const updated = updateFundDetailsTab(code);
+                        if (!updated) renderFunds();
+                    }, 0);
                 }
+                cacheDisplayed = true;
 
-            } catch (error) {
-                console.error(`[fetchETFDetails] 获取ETF ${code} 详情失败:`, error);
-                
-                // 检查是否是跨域错误
-                if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    console.warn(`[fetchETFDetails] ETF ${code} 可能是跨域限制导致，当前域名:`, window.location.origin);
-                    
-                    // 创建空的基金详情，避免一直显示加载中
-                    fundDetails[code] = {
-                        name: fundsData[code]?.name || code,
-                        code: code,
-                        netWorthData: [],
-                        sourceRate: '',
-                        currentRate: '',
-                        minAmount: '',
-                        managers: [],
-                        dataSource: 'tencent',
-                        syl_1y: '',
-                        syl_3y: '',
-                        syl_6y: '',
-                        syl_1n: '',
-                        errorMessage: '跨域限制：无法获取ETF历史数据，请在本地打开此页面'
-                    };
-                    
-                    // 触发渲染更新
-                    if (!skipRender) {
-                        renderFunds();
-                    }
+                // 检查缓存是否在1天内，如果是则不再刷新
+                const now = Date.now();
+                const oneDay = 24 * 60 * 60 * 1000;
+                if (now - cacheData.timestamp < oneDay) {
+                    console.log(`[fetchETFDetails] ETF ${code} 缓存有效，无需刷新`);
+                    return;
                 }
             }
-
-            // 标记加载完成，处理队列中的下一个
-            isLoadingFundDetails = false;
-            processFundDetailsQueue();
+        } catch (e) {
+            console.error(`[fetchETFDetails] 解析缓存失败:`, e);
         }
+    }
+
+    // 第二步：后台刷新数据（带3秒超时）
+    try {
+        const url = PROXY_BASE_URL
+            ? `${PROXY_BASE_URL}/api/etf/kline?code=${fullCode}&days=240`
+            : `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param=${fullCode},day,,,240,qfq&r=0.${Date.now()}`;
+
+        console.log(`[fetchETFDetails] 后台刷新URL: ${url}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        const arrayBuffer = await response.arrayBuffer();
+        const text = decodeGBK(arrayBuffer);
+
+        const jsonStr = text.replace('kline_dayqfq=', '');
+        const data = JSON.parse(jsonStr);
+
+        if (!data.data || !data.data[fullCode]) {
+            throw new Error('ETF K线数据格式错误');
+        }
+
+        const klineData = data.data[fullCode].qfqday || data.data[fullCode].day;
+        if (!klineData) {
+            throw new Error('ETF K线数据格式错误：找不到 day 或 qfqday 字段');
+        }
+        console.log(`[fetchETFDetails] ETF ${code} 获取到 ${klineData.length} 条K线数据`);
+
+        // 转换为与场外基金兼容的格式
+        const netWorthData = klineData.map(item => ({
+            x: new Date(item[0]).getTime(),
+            y: parseFloat(item[2])
+        }));
+
+        const currentPrice = parseFloat(klineData[klineData.length - 1][2]);
+        const getPriceDaysAgo = (days) => {
+            const index = klineData.length - 1 - days;
+            return index >= 0 ? parseFloat(klineData[index][2]) : null;
+        };
+
+        const price1m = getPriceDaysAgo(20);
+        const price3m = getPriceDaysAgo(60);
+        const price6m = getPriceDaysAgo(120);
+        const price1y = getPriceDaysAgo(240);
+
+        const syl_1y = price1m ? ((currentPrice - price1m) / price1m * 100).toFixed(2) : '';
+        const syl_3y = price3m ? ((currentPrice - price3m) / price3m * 100).toFixed(2) : '';
+        const syl_6y = price6m ? ((currentPrice - price6m) / price6m * 100).toFixed(2) : '';
+        const syl_1n = price1y ? ((currentPrice - price1y) / price1y * 100).toFixed(2) : '';
+
+        const high52w = Math.max(...klineData.map(item => parseFloat(item[3])));
+        const low52w = Math.min(...klineData.map(item => parseFloat(item[4])));
+        const totalVolume = klineData.slice(-20).reduce((sum, item) => sum + parseFloat(item[5]), 0);
+
+        fundDetails[code] = {
+            name: fundsData[code]?.name || code,
+            code: code,
+            netWorthData: netWorthData,
+            sourceRate: '',
+            currentRate: '',
+            minAmount: '',
+            managers: [],
+            dataSource: 'tencent',
+            syl_1y: syl_1y,
+            syl_3y: syl_3y,
+            syl_6y: syl_6y,
+            syl_1n: syl_1n,
+            high52w: high52w.toFixed(2),
+            low52w: low52w.toFixed(2),
+            avgVolume: (totalVolume / 20 / 10000).toFixed(2) + '万',
+            totalReturn: price1y ? ((currentPrice - parseFloat(klineData[0][2])) / parseFloat(klineData[0][2]) * 100).toFixed(2) + '%' : 'N/A'
+        };
+
+        localStorage.setItem(`fundDetail_${code}`, JSON.stringify({
+            data: fundDetails[code],
+            timestamp: Date.now()
+        }));
+
+        // 静默更新UI（如果缓存已经显示过）
+        if (!skipRender) {
+            setTimeout(() => {
+                const updated = updateFundDetailsTab(code);
+                if (!updated) renderFunds();
+            }, 0);
+        }
+
+    } catch (error) {
+        console.error(`[fetchETFDetails] 获取ETF ${code} 详情失败:`, error);
+
+        if (!cacheDisplayed) {
+            // 如果没有缓存且请求失败，创建空数据
+            fundDetails[code] = {
+                name: fundsData[code]?.name || code,
+                code: code,
+                netWorthData: [],
+                sourceRate: '',
+                currentRate: '',
+                minAmount: '',
+                managers: [],
+                dataSource: 'tencent',
+                syl_1y: '',
+                syl_3y: '',
+                syl_6y: '',
+                syl_1n: '',
+                errorMessage: '无法获取ETF历史数据，请检查网络'
+            };
+            if (!skipRender) renderFunds();
+        }
+    }
+}
 
         function fetchFundDetailsInternal(code, skipRender = false) {
             console.log(`[fetchFundDetailsInternal] 开始获取基金 ${code} 的详细信息，skipRender=${skipRender}`);
@@ -3985,9 +4131,9 @@
                                 }
                             }
                             
-                            // 标记加载完成，处理队列中的下一个
-                            isLoadingFundDetails = false;
-                            processFundDetailsQueue();
+                            // 标记加载完成（新并行逻辑中由processFundDetailsQueue管理）
+                            // isLoadingFundDetails = false; // 旧逻辑，已废弃
+                            // processFundDetailsQueue(); // 旧串行逻辑，已废弃
                             return;
                         }
                     } else {
@@ -4065,8 +4211,8 @@
                         setTimeout(() => {
                             console.log(`[fetchFundDetailsInternal] 基金 ${code} - 1秒后重新加入队列`);
                             fundDetailsQueue.unshift({ code, skipRender }); // 重新加到队列前面
-                            isLoadingFundDetails = false;
-                            processFundDetailsQueue();
+                            // isLoadingFundDetails = false; // 旧逻辑，已废弃
+                            // processFundDetailsQueue(); // 旧串行逻辑，已废弃
                         }, 1000);
                         return;
                     }
@@ -4077,9 +4223,9 @@
                         console.error(`[fetchFundDetailsInternal] 基金 ${code} - 这不应该发生，因为使用了队列机制`);
                         script.remove();
                         
-                        // 标记加载完成，处理队列中的下一个
-                        isLoadingFundDetails = false;
-                        processFundDetailsQueue();
+                        // 标记加载完成（新并行逻辑中由processFundDetailsQueue管理）
+                        // isLoadingFundDetails = false; // 旧逻辑，已废弃
+                        // processFundDetailsQueue(); // 旧串行逻辑，已废弃
                         return;
                     }
                     
@@ -4168,14 +4314,14 @@
                         }
                         
                         // 标记当前加载完成，处理队列中的下一个
-                        isLoadingFundDetails = false;
-                        processFundDetailsQueue();
+                        // isLoadingFundDetails = false; // 旧逻辑，已废弃
+                        // processFundDetailsQueue(); // 旧串行逻辑，已废弃
                     }, 150);
                 } catch (e) {
                     console.error(`[fetchFundDetailsInternal] 解析基金 ${code} 详细信息失败`, e);
                     // 即使出错也要处理队列
-                    isLoadingFundDetails = false;
-                    processFundDetailsQueue();
+                    // isLoadingFundDetails = false; // 旧逻辑，已废弃
+                    // processFundDetailsQueue(); // 旧串行逻辑，已废弃
                 }
                 script.remove();
                 }, 50); // setTimeout 延迟 50ms，确保脚本中的赋值语句已执行
@@ -4185,9 +4331,9 @@
                 console.error(`[fetchFundDetailsInternal] 获取基金 ${code} 详细信息失败`);
                 script.remove();
                 
-                // 标记加载完成，处理队列中的下一个
-                isLoadingFundDetails = false;
-                processFundDetailsQueue();
+                // 标记加载完成（新并行逻辑中由processFundDetailsQueue管理）
+                // isLoadingFundDetails = false; // 旧逻辑，已废弃
+                // processFundDetailsQueue(); // 旧串行逻辑，已废弃
             };
             
             document.body.appendChild(script);
