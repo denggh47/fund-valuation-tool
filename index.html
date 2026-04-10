@@ -6,6 +6,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>基金实时估值看板</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+
+        // Firebase 配置 - 请替换为你自己的配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyChqxnHN49Zjz_mdnAjrC71sbhHGiKlPP8",
+            authDomain: "fund-valuation-sync.firebaseapp.com",
+            projectId: "fund-valuation-sync",
+            storageBucket: "fund-valuation-sync.firebasestorage.app",
+            messagingSenderId: "38962732904",
+            appId: "1:38962732904:web:9fe0ab017c5917fd3780dd",
+            measurementId: "G-VZPY8CS325"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 启用离线持久化
+        enableIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.warn('Firebase 持久化失败：多个标签页同时打开');
+            } else if (err.code == 'unimplemented') {
+                console.warn('浏览器不支持 Firebase 持久化');
+            }
+        });
+
+        // 暴露到全局供其他代码使用
+        window.firebaseDB = db;
+        window.firebaseDoc = doc;
+        window.firebaseGetDoc = getDoc;
+        window.firebaseSetDoc = setDoc;
+        window.firebaseOnSnapshot = onSnapshot;
+    </script>
     <style>
         * {
             margin: 0;
@@ -41,6 +77,175 @@
             color: #333;
             margin-bottom: 20px;
             font-size: 28px;
+        }
+
+        /* 云同步状态指示器 */
+        .sync-status {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .sync-status.synced {
+            background: #e6f7e6;
+            color: #52c41a;
+        }
+
+        .sync-status.syncing {
+            background: #e6f4ff;
+            color: #1890ff;
+        }
+
+        .sync-status.error {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+
+        .sync-status.offline {
+            background: #f5f5f5;
+            color: #999;
+        }
+
+        .sync-status .sync-icon {
+            width: 16px;
+            height: 16px;
+        }
+
+        .sync-status.syncing .sync-icon {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* 用户ID输入框样式 */
+        .sync-config {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .sync-config.active {
+            display: flex;
+        }
+
+        .sync-config-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .sync-config-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .sync-config-content .form-group {
+            margin-bottom: 20px;
+        }
+
+        .sync-config-content label:not(.toggle-switch) {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .sync-config-content input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .sync-config-content .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .sync-config-content .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* 自定义开关样式 */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            display: none;
+        }
+
+        .toggle-slider {
+            position: relative;
+            width: 50px;
+            height: 28px;
+            background: #ccc;
+            border-radius: 28px;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: #667eea;
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(22px);
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
         }
 
         .controls {
@@ -1064,7 +1269,7 @@
             margin-bottom: 20px;
         }
 
-        .form-group label {
+        .form-group label:not(.toggle-switch) {
             display: block;
             font-size: 14px;
             color: #555;
@@ -1278,6 +1483,12 @@
     <div class="container">
         <div class="header">
             <h1>📈 基金实时估值看板</h1>
+            <div class="sync-status offline" id="syncStatus" onclick="openSyncConfig()">
+                <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span id="syncStatusText">未配置同步</span>
+            </div>
             <div class="controls">
                 <div class="add-fund">
                     <div class="autocomplete-wrapper">
@@ -1591,6 +1802,7 @@
         // 保存基金代码到localStorage
         function saveFundCodes(codes) {
             localStorage.setItem('fundCodes', JSON.stringify(codes));
+            autoSyncToCloud();
         }
 
         // 加载历史数据
@@ -1602,6 +1814,7 @@
         // 保存历史数据
         function saveHistoryData() {
             localStorage.setItem('fundHistoryData', JSON.stringify(historyData));
+            autoSyncToCloud();
         }
 
         // 加载持仓数据
@@ -1613,6 +1826,7 @@
         // 保存持仓数据
         function savePositions() {
             localStorage.setItem('positions', JSON.stringify(positions));
+            autoSyncToCloud();
         }
 
         // 加载今日范围数据
@@ -1634,6 +1848,7 @@
                 date: today,
                 ranges: dailyRanges
             }));
+            autoSyncToCloud();
         }
 
         // 获取基金列表
@@ -2293,6 +2508,244 @@
         function closeBuyModal() {
             document.getElementById('buyModal').classList.remove('active');
             currentModalFundCode = null;
+        }
+
+        // ========== 云同步功能 ==========
+        let syncUserId = localStorage.getItem('syncUserId') || '';
+        let autoSyncEnabled = localStorage.getItem('autoSyncEnabled') !== 'false';
+        let syncUnsubscribe = null;
+        let isSyncing = false;
+
+        // 打开同步配置弹窗
+        function openSyncConfig() {
+            document.getElementById('syncUserId').value = syncUserId;
+            document.getElementById('autoSyncEnabled').checked = autoSyncEnabled;
+            document.getElementById('syncConfigModal').classList.add('active');
+        }
+
+        // 关闭同步配置弹窗
+        function closeSyncConfig() {
+            document.getElementById('syncConfigModal').classList.remove('active');
+        }
+
+        // 保存同步配置
+        function saveSyncConfig() {
+            const newUserId = document.getElementById('syncUserId').value.trim();
+            autoSyncEnabled = document.getElementById('autoSyncEnabled').checked;
+
+            if (!newUserId) {
+                alert('请输入同步密钥');
+                return;
+            }
+
+            syncUserId = newUserId;
+            localStorage.setItem('syncUserId', syncUserId);
+            localStorage.setItem('autoSyncEnabled', autoSyncEnabled);
+
+            closeSyncConfig();
+            initCloudSync();
+
+            alert('✅ 同步配置已保存');
+        }
+
+        // 更新同步状态显示
+        function updateSyncStatus(status, message) {
+            const statusEl = document.getElementById('syncStatus');
+            const textEl = document.getElementById('syncStatusText');
+
+            statusEl.className = 'sync-status ' + status;
+            textEl.textContent = message;
+        }
+
+        // 初始化云同步
+        function initCloudSync() {
+            if (!syncUserId) {
+                updateSyncStatus('offline', '未配置同步');
+                return;
+            }
+
+            if (!window.firebaseDB) {
+                console.warn('Firebase 未初始化');
+                updateSyncStatus('error', '同步服务不可用');
+                return;
+            }
+
+            updateSyncStatus('syncing', '连接中...');
+
+            // 取消之前的监听
+            if (syncUnsubscribe) {
+                syncUnsubscribe();
+            }
+
+            // 设置实时监听
+            const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
+            syncUnsubscribe = window.firebaseOnSnapshot(docRef, (docSnap) => {
+                if (isSyncing) return; // 避免与自己上传的数据冲突
+
+                if (docSnap.exists()) {
+                    const cloudData = docSnap.data();
+                    const localTimestamp = parseInt(localStorage.getItem('lastSyncTimestamp') || '0');
+                    const cloudTimestamp = cloudData.timestamp || 0;
+
+                    if (cloudTimestamp > localTimestamp) {
+                        // 云端数据较新，下载并合并
+                        console.log('[CloudSync] 检测到云端新数据，正在下载...');
+                        downloadFromCloud(cloudData);
+                    } else {
+                        updateSyncStatus('synced', '已同步');
+                    }
+                } else {
+                    // 云端无数据，上传本地数据
+                    console.log('[CloudSync] 云端无数据，准备上传...');
+                    if (autoSyncEnabled) {
+                        uploadToCloud();
+                    } else {
+                        updateSyncStatus('offline', '自动同步已关闭');
+                    }
+                }
+            }, (error) => {
+                console.error('[CloudSync] 监听失败:', error);
+                updateSyncStatus('error', '同步失败');
+            });
+        }
+
+        // 上传到云端
+        async function uploadToCloud() {
+            if (!syncUserId || !window.firebaseDB) return;
+
+            isSyncing = true;
+            updateSyncStatus('syncing', '上传中...');
+
+            try {
+                const data = {
+                    fundCodes: loadFundCodes(),
+                    positions: positions,
+                    historyData: historyData,
+                    fundDetails: fundDetails,
+                    dailyRanges: dailyRanges,
+                    sortOrder: sortOrder,
+                    timestamp: Date.now(),
+                    device: navigator.userAgent
+                };
+
+                const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
+                await window.firebaseSetDoc(docRef, data);
+
+                localStorage.setItem('lastSyncTimestamp', data.timestamp.toString());
+                updateSyncStatus('synced', '已同步');
+                console.log('[CloudSync] 上传成功');
+            } catch (error) {
+                console.error('[CloudSync] 上传失败:', error);
+                updateSyncStatus('error', '上传失败');
+            } finally {
+                isSyncing = false;
+            }
+        }
+
+        // 从云端下载
+        async function downloadFromCloud(cloudData) {
+            updateSyncStatus('syncing', '下载中...');
+
+            try {
+                // 合并数据
+                if (cloudData.fundCodes) {
+                    saveFundCodes(cloudData.fundCodes);
+                }
+                if (cloudData.positions) {
+                    positions = cloudData.positions;
+                    savePositions();
+                }
+                if (cloudData.historyData) {
+                    historyData = cloudData.historyData;
+                    saveHistoryData();
+                }
+                if (cloudData.fundDetails) {
+                    fundDetails = cloudData.fundDetails;
+                    // 保存到 localStorage
+                    Object.keys(fundDetails).forEach(code => {
+                        const cacheData = {
+                            data: fundDetails[code],
+                            timestamp: Date.now()
+                        };
+                        localStorage.setItem(`fundDetail_${code}`, JSON.stringify(cacheData));
+                    });
+                }
+                if (cloudData.dailyRanges) {
+                    dailyRanges = cloudData.dailyRanges;
+                    saveDailyRanges();
+                }
+                if (cloudData.sortOrder) {
+                    sortOrder = cloudData.sortOrder;
+                    localStorage.setItem('sortOrder', sortOrder);
+                    document.getElementById('sortSelect').value = sortOrder;
+                }
+
+                localStorage.setItem('lastSyncTimestamp', (cloudData.timestamp || Date.now()).toString());
+
+                // 刷新页面显示
+                renderFunds();
+                const codes = loadFundCodes();
+                codes.forEach(code => fetchFundData(code));
+
+                updateSyncStatus('synced', '已同步');
+                console.log('[CloudSync] 下载并合并成功');
+            } catch (error) {
+                console.error('[CloudSync] 下载失败:', error);
+                updateSyncStatus('error', '下载失败');
+            }
+        }
+
+        // 手动上传到云端
+        async function manualSyncToCloud() {
+            if (!syncUserId) {
+                alert('请先配置同步密钥');
+                return;
+            }
+            await uploadToCloud();
+            alert('✅ 数据已上传到云端');
+        }
+
+        // 手动从云端下载
+        async function manualSyncFromCloud() {
+            if (!syncUserId) {
+                alert('请先配置同步密钥');
+                return;
+            }
+
+            if (!window.firebaseDB) {
+                alert('❌ Firebase 未初始化');
+                return;
+            }
+
+            updateSyncStatus('syncing', '下载中...');
+
+            try {
+                const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
+                const docSnap = await window.firebaseGetDoc(docRef);
+
+                if (docSnap.exists()) {
+                    await downloadFromCloud(docSnap.data());
+                    alert('✅ 数据已从云端下载');
+                } else {
+                    alert('⚠️ 云端暂无数据');
+                    updateSyncStatus('offline', '云端无数据');
+                }
+            } catch (error) {
+                console.error('[CloudSync] 手动下载失败:', error);
+                alert('❌ 下载失败: ' + error.message);
+                updateSyncStatus('error', '下载失败');
+            }
+        }
+
+        // 数据变更时自动上传
+        function autoSyncToCloud() {
+            if (autoSyncEnabled && syncUserId) {
+                // 防抖，避免频繁上传
+                clearTimeout(window.syncTimeout);
+                window.syncTimeout = setTimeout(() => {
+                    uploadToCloud();
+                }, 3000);
+            }
         }
 
         // 切换买入模式
@@ -4510,6 +4963,11 @@
                     fetchFundList();
                 }
             }, 60000); // 每分钟检查一次
+
+            // 初始化云同步
+            setTimeout(() => {
+                initCloudSync();
+            }, 2000); // 延迟2秒等待 Firebase 初始化
         }
 
         // 页面加载完成后初始化
@@ -4662,5 +5120,32 @@
             });
         });
     </script>
+
+    <!-- 同步配置弹窗 -->
+    <div id="syncConfigModal" class="sync-config">
+        <div class="sync-config-content">
+            <h3>☁️ 云同步配置</h3>
+            <div class="form-group">
+                <label for="syncUserId">同步密钥（自定义标识）</label>
+                <small style="color: #999; font-size: 12px; display: block; margin-bottom: 8px;">在所有设备使用相同的密钥即可同步数据</small>
+                <input type="text" id="syncUserId" placeholder="如：my-fund-data-2024">
+            </div>
+            <div class="form-group">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="autoSyncEnabled" checked>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">启用自动同步</span>
+                </label>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="closeSyncConfig()">取消</button>
+                <button class="btn btn-primary" onclick="saveSyncConfig()">保存配置</button>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e8e8e8;">
+                <button class="btn btn-secondary" onclick="manualSyncToCloud()" style="width: 100%; margin-bottom: 10px;">📤 手动上传到云端</button>
+                <button class="btn btn-secondary" onclick="manualSyncFromCloud()" style="width: 100%;">📥 手动从云端下载</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
