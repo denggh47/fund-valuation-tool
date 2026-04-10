@@ -295,6 +295,45 @@
             margin-left: 4px;
         }
 
+        /* 买入模式切换选项卡 */
+        .buy-mode-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 10px 20px;
+            border: 2px solid #e8e8e8;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .mode-tab:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .mode-tab.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        /* 自动计算字段的样式 */
+        #buyAmount[readonly], #buyShares[readonly] {
+            background: #f5f5f5;
+            color: #666;
+        }
+
         /* 基金详细信息样式 */
         .fund-details {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -1354,6 +1393,15 @@
                 <h2>买入基金</h2>
                 <button class="close-btn" onclick="closeBuyModal()">&times;</button>
             </div>
+            <!-- 模式切换选项卡 -->
+            <div class="buy-mode-tabs">
+                <button class="mode-tab active" data-mode="amount" onclick="switchBuyMode('amount')">
+                    💰 金额模式
+                </button>
+                <button class="mode-tab" data-mode="shares" onclick="switchBuyMode('shares')">
+                    📊 份额模式
+                </button>
+            </div>
             <div class="form-group">
                 <label for="buyNetValue">买入净值</label>
                 <input type="number" id="buyNetValue" step="0.0001" placeholder="如：1.6000">
@@ -1370,8 +1418,8 @@
                 <small>本次交易的手续费</small>
             </div>
             <div class="form-group">
-                <label>买入份额（自动计算）</label>
-                <input type="number" id="buyShares" step="0.01" readonly style="background: #f5f5f5;">
+                <label for="buyShares">买入份额</label>
+                <input type="number" id="buyShares" step="0.01" placeholder="如：1000.00">
                 <small>份额 = (买入金额 - 手续费) / 买入净值</small>
             </div>
             <div class="form-actions">
@@ -1460,6 +1508,7 @@
         let currentSection = 'holding'; // 当前显示的板块: 'holding' 或 'watchlist'
         let dailyRanges = {}; // 今日最高最低：{ code: { high, low } }
         let currentModalFundCode = null; // 当前操作的基金代码
+        let currentBuyMode = 'amount'; // 当前买入模式: 'amount' 或 'shares'
         let currentAvailableShares = 0; // 当前可卖出份额
         let confirmCallback = null; // 确认对话框回调函数
         let fundList = []; // 所有基金列表
@@ -2235,10 +2284,8 @@
         // 打开买入模态框
         function openBuyModal(code) {
             currentModalFundCode = code;
-            document.getElementById('buyNetValue').value = '';
-            document.getElementById('buyAmount').value = '';
-            document.getElementById('buyFee').value = '0';
-            document.getElementById('buyShares').value = '';
+            // 重置为金额模式
+            switchBuyMode('amount');
             document.getElementById('buyModal').classList.add('active');
         }
 
@@ -2248,20 +2295,113 @@
             currentModalFundCode = null;
         }
 
+        // 切换买入模式
+        function switchBuyMode(mode) {
+            currentBuyMode = mode;
+
+            // 更新选项卡样式
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.mode === mode);
+            });
+
+            // 获取表单元素
+            const amountInput = document.getElementById('buyAmount');
+            const sharesInput = document.getElementById('buyShares');
+            const amountGroup = amountInput.closest('.form-group');
+            const sharesGroup = sharesInput.closest('.form-group');
+            const amountLabel = amountGroup.querySelector('label');
+            const sharesLabel = sharesGroup.querySelector('label');
+            const amountSmall = amountGroup.querySelector('small');
+            const sharesSmall = sharesGroup.querySelector('small');
+
+            if (mode === 'amount') {
+                // 金额模式：金额可输入，份额自动计算
+                amountInput.readOnly = false;
+                sharesInput.readOnly = true;
+                amountLabel.textContent = '买入金额（元）';
+                sharesLabel.textContent = '买入份额（自动计算）';
+                amountSmall.textContent = '本次投入的金额';
+                sharesSmall.textContent = '份额 = (买入金额 - 手续费) / 买入净值';
+            } else {
+                // 份额模式：份额可输入，金额自动计算
+                amountInput.readOnly = true;
+                sharesInput.readOnly = false;
+                amountLabel.textContent = '买入金额（自动计算）';
+                sharesLabel.textContent = '买入份额';
+                amountSmall.textContent = '金额 = 买入份额 × 买入净值 + 手续费';
+                sharesSmall.textContent = '本次买入的份额数量';
+            }
+
+            // 清空输入
+            amountInput.value = '';
+            sharesInput.value = '';
+            document.getElementById('buyNetValue').value = '';
+            document.getElementById('buyFee').value = '0';
+        }
+
+        // 金额模式：根据金额计算份额
+        function calculateSharesFromAmount() {
+            if (currentBuyMode !== 'amount') return;
+
+            const netValue = parseFloat(document.getElementById('buyNetValue').value);
+            const amount = parseFloat(document.getElementById('buyAmount').value);
+            const fee = parseFloat(document.getElementById('buyFee').value) || 0;
+
+            if (netValue && amount && netValue > 0) {
+                const shares = (amount - fee) / netValue;
+                document.getElementById('buyShares').value = shares.toFixed(2);
+            }
+        }
+
+        // 份额模式：根据份额计算金额
+        function calculateAmountFromShares() {
+            if (currentBuyMode !== 'shares') return;
+
+            const netValue = parseFloat(document.getElementById('buyNetValue').value);
+            const shares = parseFloat(document.getElementById('buyShares').value);
+            const fee = parseFloat(document.getElementById('buyFee').value) || 0;
+
+            if (netValue && shares && netValue > 0) {
+                const amount = shares * netValue + fee;
+                document.getElementById('buyAmount').value = amount.toFixed(2);
+            }
+        }
+
         // 保存买入
         function saveBuy() {
             if (!currentModalFundCode) return;
 
             const netValue = parseFloat(document.getElementById('buyNetValue').value);
             const amount = parseFloat(document.getElementById('buyAmount').value);
+            const shares = parseFloat(document.getElementById('buyShares').value);
             const fee = parseFloat(document.getElementById('buyFee').value) || 0;
 
-            if (!netValue || !amount || netValue <= 0 || amount <= 0) {
-                alert('请输入有效的买入净值和买入金额');
+            // 验证基本字段
+            if (!netValue || netValue <= 0) {
+                alert('请输入有效的买入净值');
                 return;
             }
 
-            const shares = (amount - fee) / netValue;
+            // 根据模式验证对应字段
+            if (currentBuyMode === 'amount') {
+                if (!amount || amount <= 0) {
+                    alert('请输入有效的买入金额');
+                    return;
+                }
+                if (!shares || shares <= 0) {
+                    alert('份额计算错误，请检查输入');
+                    return;
+                }
+            } else {
+                if (!shares || shares <= 0) {
+                    alert('请输入有效的买入份额');
+                    return;
+                }
+                if (!amount || amount <= 0) {
+                    alert('金额计算错误，请检查输入');
+                    return;
+                }
+            }
 
             // 确保格式正确，兼容旧数据
             if (!positions[currentModalFundCode] || !positions[currentModalFundCode].transactions) {
@@ -4421,20 +4561,33 @@
                 });
             });
 
-            // 买入实时计算份额
-            ['buyNetValue', 'buyAmount', 'buyFee'].forEach(id => {
-                document.getElementById(id).addEventListener('input', () => {
-                    const netValue = parseFloat(document.getElementById('buyNetValue').value);
-                    const amount = parseFloat(document.getElementById('buyAmount').value);
-                    const fee = parseFloat(document.getElementById('buyFee').value) || 0;
-                    
-                    if (netValue && amount && netValue > 0 && amount > 0) {
-                        const shares = (amount - fee) / netValue;
-                        document.getElementById('buyShares').value = shares.toFixed(2);
-                    } else {
-                        document.getElementById('buyShares').value = '';
-                    }
-                });
+            // 买入模式实时计算
+            document.getElementById('buyNetValue').addEventListener('input', () => {
+                if (currentBuyMode === 'amount') {
+                    calculateSharesFromAmount();
+                } else {
+                    calculateAmountFromShares();
+                }
+            });
+
+            document.getElementById('buyAmount').addEventListener('input', () => {
+                if (currentBuyMode === 'amount') {
+                    calculateSharesFromAmount();
+                }
+            });
+
+            document.getElementById('buyShares').addEventListener('input', () => {
+                if (currentBuyMode === 'shares') {
+                    calculateAmountFromShares();
+                }
+            });
+
+            document.getElementById('buyFee').addEventListener('input', () => {
+                if (currentBuyMode === 'amount') {
+                    calculateSharesFromAmount();
+                } else {
+                    calculateAmountFromShares();
+                }
             });
 
             // 卖出实时计算金额
