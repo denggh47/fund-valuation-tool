@@ -248,6 +248,304 @@
             font-weight: 500;
         }
 
+        /* 比例平衡容器 */
+        .balance-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .balance-layout {
+            display: grid;
+            grid-template-columns: 480px 1fr;
+            gap: 40px;
+        }
+
+        @media (max-width: 1200px) {
+            .balance-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 饼图区域 */
+        .balance-chart-section {
+            text-align: center;
+        }
+
+        .balance-chart-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .balance-chart-section canvas {
+            width: 425px !important;
+            height: 425px !important;
+            margin: 0 auto;
+            display: block;
+            max-width: 425px;
+            max-height: 425px;
+        }
+
+        .balance-summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .summary-item span {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .summary-item strong {
+            color: #333;
+            font-size: 20px;
+        }
+
+        /* 设置区域 */
+        .balance-settings-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        /* 表格样式 */
+        .balance-table-container {
+            max-height: 450px;
+            overflow-y: auto;
+            border: 1px solid #e8e8e8;
+            border-radius: 10px;
+        }
+
+        .balance-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+
+        .balance-table thead {
+            position: sticky;
+            top: 0;
+            background: #667eea;
+            color: white;
+            z-index: 1;
+        }
+
+        .balance-table th {
+            padding: 12px 10px;
+            text-align: center;
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        .balance-table th:first-child {
+            text-align: left;
+            padding-left: 15px;
+        }
+
+        .balance-table td {
+            padding: 12px 10px;
+            text-align: center;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .balance-table td:first-child {
+            text-align: left;
+            padding-left: 15px;
+        }
+
+        .balance-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .balance-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .balance-table tfoot {
+            background: #f0f5ff;
+            font-weight: 500;
+        }
+
+        .balance-table tfoot td {
+            border-top: 2px solid #667eea;
+            padding: 12px 10px;
+        }
+
+        /* 基金名称列 */
+        .balance-fund-name-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .balance-fund-name {
+            font-weight: 500;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .balance-fund-code {
+            color: #999;
+            font-size: 13px;
+        }
+
+        /* 目标比例输入 */
+        .balance-ratio-input {
+            width: 70px;
+            padding: 6px 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            text-align: right;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        .balance-ratio-input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .balance-ratio-input.error {
+            border-color: #ff4d4f;
+            background: #fff2f0;
+        }
+
+        /* 目标金额样式 */
+        .balance-target-amount {
+            font-weight: 500;
+            font-size: 15px;
+            color: #333;
+        }
+
+        /* 调整金额样式 */
+        .balance-adjust-amount {
+            font-weight: 500;
+            font-size: 15px;
+        }
+
+        .balance-adjust-amount.buy {
+            color: #ff4d4f;
+        }
+
+        .balance-adjust-amount.sell {
+            color: #52c41a;
+        }
+
+        .balance-adjust-amount.neutral {
+            color: #999;
+        }
+
+        /* 操作按钮 */
+        .balance-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        .balance-actions .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .balance-actions .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .balance-actions .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        /* 调仓结果 */
+        .rebalance-result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f0f5ff;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .rebalance-result h4 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .rebalance-suggestion {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .rebalance-suggestion:last-child {
+            border-bottom: none;
+        }
+
+        .rebalance-fund-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .rebalance-action {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .rebalance-action-type {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .rebalance-action-type.buy {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+
+        .rebalance-action-type.sell {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .rebalance-amount {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+        }
+
+        /* 比例平衡空状态 */
+        .balance-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .balance-empty h3 {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
         .controls {
             display: flex;
             gap: 15px;
@@ -1559,8 +1857,63 @@
             <button class="section-tab" data-section="watchlist" onclick="switchSection('watchlist')">
                 👁 自选 <span class="count-badge" id="watchlistCount">0</span>
             </button>
+            <button class="section-tab" data-section="balance" onclick="switchSection('balance')">
+                ⚖️ 比例平衡
+            </button>
         </div>
         <div id="fundsContainer" class="funds-grid"></div>
+
+        <!-- 比例平衡内容区域 -->
+        <div id="balanceContainer" class="balance-container" style="display: none;">
+            <div class="balance-layout">
+                <!-- 左侧：饼图 -->
+                <div class="balance-chart-section">
+                    <h3>当前持仓占比</h3>
+                    <canvas id="balancePieChart" width="425" height="425"></canvas>
+                    <div class="balance-summary">
+                        <div class="summary-item">
+                            <span>持仓总市值</span>
+                            <strong id="totalHoldingValue">¥0.00</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：比例设置表格 -->
+                <div class="balance-settings-section">
+                    <h3>目标比例设置</h3>
+                    <div class="balance-table-container">
+                        <table class="balance-table" id="balanceTable">
+                            <thead>
+                                <tr>
+                                    <th>基金名称</th>
+                                    <th>持仓金额</th>
+                                    <th>持仓比例</th>
+                                    <th>目标比例</th>
+                                    <th>目标金额</th>
+                                    <th>调整金额</th>
+                                </tr>
+                            </thead>
+                            <tbody id="balanceTableBody">
+                                <!-- 动态生成基金列表 -->
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2"><strong>合计</strong></td>
+                                    <td id="totalCurrentRatio">100%</td>
+                                    <td id="totalTargetRatio">0%</td>
+                                    <td id="totalTargetAmount">-</td>
+                                    <td id="totalAdjustAmount">-</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="balance-actions">
+                        <button class="btn btn-secondary" onclick="resetBalanceRatios()">重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 初始申购模态框 -->
@@ -2624,6 +2977,7 @@
                     fundDetails: fundDetails,
                     dailyRanges: dailyRanges,
                     sortOrder: sortOrder,
+                    targetRatios: loadTargetRatios(),
                     timestamp: Date.now(),
                     device: navigator.userAgent
                 };
@@ -2678,6 +3032,9 @@
                     sortOrder = cloudData.sortOrder;
                     localStorage.setItem('sortOrder', sortOrder);
                     document.getElementById('sortSelect').value = sortOrder;
+                }
+                if (cloudData.targetRatios) {
+                    localStorage.setItem('targetRatios', JSON.stringify(cloudData.targetRatios));
                 }
 
                 localStorage.setItem('lastSyncTimestamp', (cloudData.timestamp || Date.now()).toString());
@@ -3740,11 +4097,364 @@
                 tab.classList.toggle('active', tab.dataset.section === section);
             });
 
-            // 重新渲染基金列表
-            renderFunds();
+            // 控制显示内容
+            if (section === 'balance') {
+                document.getElementById('fundsContainer').style.display = 'none';
+                document.getElementById('balanceContainer').style.display = 'block';
+                initBalanceView();
+            } else {
+                document.getElementById('fundsContainer').style.display = 'grid';
+                document.getElementById('balanceContainer').style.display = 'none';
+                renderFunds();
+            }
 
             console.log(`[switchSection] 切换到板块: ${section}`);
         }
+
+        // ========== 比例平衡功能 ==========
+
+        // 初始化比例平衡视图
+        function initBalanceView() {
+            // 恢复容器原始结构（如果被空状态替换过）
+            const container = document.getElementById('balanceContainer');
+            if (container.querySelector('.balance-empty')) {
+                location.reload();
+                return;
+            }
+
+            const holdingCodes = getHoldingCodes();
+
+            if (holdingCodes.length === 0) {
+                showBalanceEmpty();
+                return;
+            }
+
+            // 获取基金数据并排序
+            const fundData = holdingCodes.map(code => {
+                const data = fundsData[code];
+                const posInfo = calculatePosition(code);
+                if (!data || !posInfo) return null;
+                return {
+                    code,
+                    name: data.name || code,
+                    value: posInfo.totalShares * parseFloat(data.gsz)
+                };
+            }).filter(item => item !== null);
+
+            // 按持仓金额倒序排序
+            fundData.sort((a, b) => b.value - a.value);
+
+            renderBalanceFundList(fundData);
+            renderBalancePieChart(fundData);
+            updateTotalHoldingValue();
+        }
+
+        // 获取持仓基金代码列表
+        function getHoldingCodes() {
+            const codes = loadFundCodes();
+            return codes.filter(code => {
+                const posInfo = calculatePosition(code);
+                return posInfo && posInfo.totalShares > 0;
+            });
+        }
+
+        // 显示空状态
+        function showBalanceEmpty() {
+            const container = document.getElementById('balanceContainer');
+            container.innerHTML = `
+                <div class="balance-empty">
+                    <h3>暂无持仓基金</h3>
+                    <p>添加基金并进行买入操作后，可以在这里查看持仓比例</p>
+                </div>
+            `;
+        }
+
+        // 加载保存的目标比例
+        function loadTargetRatios() {
+            const saved = localStorage.getItem('targetRatios');
+            return saved ? JSON.parse(saved) : {};
+        }
+
+        // 保存目标比例
+        function saveTargetRatios() {
+            const ratios = {};
+            document.querySelectorAll('.balance-ratio-input').forEach(input => {
+                const code = input.dataset.code;
+                const value = parseFloat(input.value);
+                if (value > 0) {
+                    ratios[code] = value;
+                }
+            });
+            localStorage.setItem('targetRatios', JSON.stringify(ratios));
+            // 触发云同步
+            autoSyncToCloud();
+        }
+
+        // 渲染基金表格
+        function renderBalanceFundList(fundData) {
+            const tbody = document.getElementById('balanceTableBody');
+
+            // 计算总市值
+            const totalValue = fundData.reduce((sum, f) => sum + f.value, 0);
+            window.currentTotalValue = totalValue;
+
+            // 加载保存的目标比例
+            const savedRatios = loadTargetRatios();
+
+            // 渲染表格行
+            tbody.innerHTML = fundData.map(fund => {
+                const currentRatio = totalValue > 0 ? (fund.value / totalValue * 100) : 0;
+                const savedRatio = savedRatios[fund.code] || '';
+                return `
+                    <tr data-code="${fund.code}">
+                        <td>
+                            <div class="balance-fund-name-cell">
+                                <span class="balance-fund-name">${fund.name}</span>
+                                <span class="balance-fund-code">${fund.code}</span>
+                            </div>
+                        </td>
+                        <td>¥${fund.value.toFixed(2)}</td>
+                        <td>${currentRatio.toFixed(1)}%</td>
+                        <td>
+                            <input type="number"
+                                   class="balance-ratio-input"
+                                   data-code="${fund.code}"
+                                   data-current-value="${fund.value}"
+                                   value="${savedRatio}"
+                                   placeholder="0"
+                                   min="0"
+                                   max="100"
+                                   step="0.1">%
+                        </td>
+                        <td class="balance-target-amount" data-code="${fund.code}">-</td>
+                        <td class="balance-adjust-amount neutral" data-code="${fund.code}">-</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // 绑定输入事件实现实时计算
+            document.querySelectorAll('.balance-ratio-input').forEach(input => {
+                input.addEventListener('input', function() {
+                    updateBalanceCalculation();
+                    saveTargetRatios();
+                });
+            });
+
+            // 如果有保存的比例，自动计算
+            if (Object.keys(savedRatios).length > 0) {
+                updateBalanceCalculation();
+            }
+        }
+
+        // 实时更新平衡计算
+        function updateBalanceCalculation() {
+            const totalValue = window.currentTotalValue || 0;
+            const inputs = document.querySelectorAll('.balance-ratio-input');
+
+            let totalTargetRatio = 0;
+
+            // 计算目标比例总和
+            inputs.forEach(input => {
+                totalTargetRatio += parseFloat(input.value) || 0;
+            });
+
+            // 更新每行的目标金额和调整金额
+            inputs.forEach(input => {
+                const code = input.dataset.code;
+                const currentValue = parseFloat(input.dataset.currentValue) || 0;
+                const targetRatio = parseFloat(input.value) || 0;
+                const targetValue = totalValue * (targetRatio / 100);
+                const adjustAmount = targetValue - currentValue;
+
+                // 更新目标金额
+                const targetCell = document.querySelector(`.balance-target-amount[data-code="${code}"]`);
+                if (targetCell) {
+                    if (targetRatio === 0) {
+                        targetCell.textContent = '¥0.00';
+                    } else {
+                        targetCell.textContent = `¥${targetValue.toFixed(2)}`;
+                    }
+                }
+
+                // 更新调整金额
+                const adjustCell = document.querySelector(`.balance-adjust-amount[data-code="${code}"]`);
+                if (adjustCell) {
+                    if (targetRatio === 0 && currentValue > 0) {
+                        // 目标比例为0且当前有持仓，应全部卖出
+                        adjustCell.textContent = `-¥${currentValue.toFixed(2)}`;
+                        adjustCell.className = 'balance-adjust-amount sell';
+                    } else if (adjustAmount > 0) {
+                        adjustCell.textContent = `+¥${adjustAmount.toFixed(2)}`;
+                        adjustCell.className = 'balance-adjust-amount buy';
+                    } else if (adjustAmount < 0) {
+                        adjustCell.textContent = `-¥${Math.abs(adjustAmount).toFixed(2)}`;
+                        adjustCell.className = 'balance-adjust-amount sell';
+                    } else {
+                        adjustCell.textContent = '¥0.00';
+                        adjustCell.className = 'balance-adjust-amount neutral';
+                    }
+                }
+
+                // 高亮错误输入（比例总和超过100%）
+                if (totalTargetRatio > 100) {
+                    input.classList.add('error');
+                } else {
+                    input.classList.remove('error');
+                }
+            });
+
+            // 更新合计行
+            const totalCurrentRatioEl = document.getElementById('totalCurrentRatio');
+            const totalTargetRatioEl = document.getElementById('totalTargetRatio');
+            const totalTargetAmountEl = document.getElementById('totalTargetAmount');
+            const totalAdjustAmountEl = document.getElementById('totalAdjustAmount');
+
+            if (totalCurrentRatioEl) totalCurrentRatioEl.textContent = '100%';
+            if (totalTargetRatioEl) {
+                totalTargetRatioEl.textContent = `${totalTargetRatio.toFixed(1)}%`;
+                totalTargetRatioEl.style.color = Math.abs(totalTargetRatio - 100) > 0.1 ? '#ff4d4f' : '#333';
+            }
+            if (totalTargetAmountEl) {
+                const totalTarget = Array.from(document.querySelectorAll('.balance-target-amount'))
+                    .reduce((sum, el) => {
+                        const text = el.textContent.replace(/[¥]/g, '');
+                        const val = parseFloat(text) || 0;
+                        return sum + val;
+                    }, 0);
+                totalTargetAmountEl.textContent = `¥${totalTarget.toFixed(2)}`;
+            }
+            if (totalAdjustAmountEl) {
+                const totalAdjust = Array.from(document.querySelectorAll('.balance-adjust-amount'))
+                    .reduce((sum, el) => {
+                        const text = el.textContent.replace(/[¥+-]/g, '');
+                        const val = parseFloat(text) || 0;
+                        return sum + (el.textContent.includes('-') && el.textContent !== '-' ? -val : val);
+                    }, 0);
+                totalAdjustAmountEl.textContent = totalAdjust === 0 ? '¥0.00' : `¥${Math.abs(totalAdjust).toFixed(2)}`;
+            }
+        }
+
+        // 渲染饼图
+        function renderBalancePieChart(fundData) {
+            const canvas = document.getElementById('balancePieChart');
+            if (!canvas) return;
+
+            // 设置画布尺寸（必须在获取context之前）
+            canvas.width = 425;
+            canvas.height = 425;
+
+            const ctx = canvas.getContext('2d');
+
+            // 准备数据
+            const colors = [
+                '#667eea', '#764ba2', '#f093fb', '#f5576c',
+                '#4facfe', '#00f2fe', '#43e97b', '#fa709a'
+            ];
+
+            let totalValue = fundData.reduce((sum, f) => sum + f.value, 0);
+
+            // 如果没有数据，显示空提示
+            if (totalValue === 0 || fundData.length === 0) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.font = '14px sans-serif';
+                ctx.fillStyle = '#999';
+                ctx.textAlign = 'center';
+                ctx.fillText('暂无持仓数据', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            const fundValues = fundData.map((fund, index) => ({
+                ...fund,
+                color: colors[index % colors.length]
+            }));
+
+            // 销毁旧图表
+            if (window.balancePieChart && typeof window.balancePieChart.destroy === 'function') {
+                window.balancePieChart.destroy();
+            }
+            window.balancePieChart = null;
+
+            // 创建新图表
+            window.balancePieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: fundValues.map(f => f.name),
+                    datasets: [{
+                        data: fundValues.map(f => f.value),
+                        backgroundColor: fundValues.map(f => f.color),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: { size: 13 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    const value = context.raw;
+                                    const percentage = ((value / totalValue) * 100).toFixed(1);
+                                    return [`金额: ¥${value.toFixed(2)}`, `占比: ${percentage}%`];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 保存总值供后续使用
+            window.currentTotalValue = totalValue;
+        }
+
+        // 更新总市值显示
+        function updateTotalHoldingValue() {
+            const total = window.currentTotalValue || 0;
+            const el = document.getElementById('totalHoldingValue');
+            if (el) {
+                el.textContent = `¥${total.toFixed(2)}`;
+            }
+        }
+
+        // 重置比例
+        function resetBalanceRatios() {
+            document.querySelectorAll('.balance-ratio-input').forEach(input => {
+                input.value = '';
+                input.classList.remove('error');
+            });
+            document.querySelectorAll('.balance-target-amount').forEach(el => {
+                el.textContent = '-';
+            });
+            document.querySelectorAll('.balance-adjust-amount').forEach(el => {
+                el.textContent = '-';
+                el.className = 'balance-adjust-amount neutral';
+            });
+            const totalTargetRatioEl = document.getElementById('totalTargetRatio');
+            const totalTargetAmountEl = document.getElementById('totalTargetAmount');
+            const totalAdjustAmountEl = document.getElementById('totalAdjustAmount');
+            if (totalTargetRatioEl) {
+                totalTargetRatioEl.textContent = '0%';
+                totalTargetRatioEl.style.color = '#333';
+            }
+            if (totalTargetAmountEl) totalTargetAmountEl.textContent = '-';
+            if (totalAdjustAmountEl) totalAdjustAmountEl.textContent = '-';
+            // 清除本地存储的目标比例
+            localStorage.removeItem('targetRatios');
+            // 触发云同步
+            autoSyncToCloud();
+        }
+
+        // 渲染调仓建议
         // 更新总览看板
         function updateOverviewPanel() {
             const codes = loadFundCodes();
