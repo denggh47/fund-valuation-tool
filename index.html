@@ -2159,7 +2159,22 @@
         // 加载历史数据
         function loadHistoryData() {
             const saved = localStorage.getItem('fundHistoryData');
-            return saved ? JSON.parse(saved) : {};
+            if (!saved) return {};
+
+            try {
+                const data = JSON.parse(saved);
+                // 验证并修复数据格式：确保每个基金的历史数据都是数组
+                Object.keys(data).forEach(code => {
+                    if (!Array.isArray(data[code])) {
+                        console.warn(`[loadHistoryData] 基金 ${code} 历史数据不是数组，重置为空数组`);
+                        data[code] = [];
+                    }
+                });
+                return data;
+            } catch (e) {
+                console.error('[loadHistoryData] 解析历史数据失败', e);
+                return {};
+            }
         }
 
         // 保存历史数据
@@ -2928,13 +2943,10 @@
 
             for (const code in data) {
                 const fundHistory = data[code];
-                if (typeof fundHistory === 'object') {
-                    trimmed[code] = {};
-                    for (const date in fundHistory) {
-                        if (date >= cutoffStr) {
-                            trimmed[code][date] = fundHistory[date];
-                        }
-                    }
+                // 确保是数组格式
+                if (Array.isArray(fundHistory)) {
+                    // 过滤出90天内的数据
+                    trimmed[code] = fundHistory.filter(item => item.date >= cutoffStr);
                 }
             }
             return trimmed;
@@ -4126,18 +4138,24 @@
             if (!historyData[data.fundcode]) {
                 historyData[data.fundcode] = [];
             }
-            
+
+            // 确保历史数据是数组（兼容旧数据格式）
+            if (!Array.isArray(historyData[data.fundcode])) {
+                console.warn(`[jsonpgz] 基金 ${data.fundcode} 历史数据不是数组，重置为空数组`);
+                historyData[data.fundcode] = [];
+            }
+
             // 添加新的数据点
             const history = historyData[data.fundcode];
             const now = new Date();
             const today = now.toLocaleDateString('zh-CN');
             const time = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
             const percentage = parseFloat(parseFloat(data.gszzl).toFixed(2));
-            
+
             // 获取当前小时和分钟
             const hour = now.getHours();
             const minute = now.getMinutes();
-            
+
             // 清理非当天的数据
             const todayHistory = history.filter(item => item.date === today);
             historyData[data.fundcode] = todayHistory;
@@ -5237,7 +5255,14 @@
 
         // 绘制图表
         function drawChart(code) {
-            const history = historyData[code] || [];
+            let history = historyData[code];
+
+            // 确保历史数据是数组
+            if (!Array.isArray(history)) {
+                console.warn(`[drawChart] 基金 ${code} 历史数据不是数组:`, history);
+                history = [];
+            }
+
             if (history.length === 0) return;
 
             const ctx = document.getElementById(`chart-${code}`);
