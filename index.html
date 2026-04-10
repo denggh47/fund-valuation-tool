@@ -9,7 +9,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
 
         // Firebase 配置 - 请替换为你自己的配置
         const firebaseConfig = {
@@ -26,14 +26,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 启用离线持久化
-        enableIndexedDbPersistence(db).catch((err) => {
-            if (err.code == 'failed-precondition') {
-                console.warn('Firebase 持久化失败：多个标签页同时打开');
-            } else if (err.code == 'unimplemented') {
-                console.warn('浏览器不支持 Firebase 持久化');
-            }
-        });
+        // 禁用离线持久化（手动同步模式不需要，避免资源耗尽错误）
+        // enableIndexedDbPersistence(db).catch((err) => {
+        //     if (err.code == 'failed-precondition') {
+        //         console.warn('Firebase 持久化失败：多个标签页同时打开');
+        //     } else if (err.code == 'unimplemented') {
+        //         console.warn('浏览器不支持 Firebase 持久化');
+        //     }
+        // });
 
         // 暴露到全局供其他代码使用
         window.firebaseDB = db;
@@ -2863,14 +2863,11 @@
 
         // ========== 云同步功能 ==========
         let syncUserId = localStorage.getItem('syncUserId') || '';
-        let autoSyncEnabled = localStorage.getItem('autoSyncEnabled') !== 'false';
-        let syncUnsubscribe = null;
         let isSyncing = false;
 
         // 打开同步配置弹窗
         function openSyncConfig() {
             document.getElementById('syncUserId').value = syncUserId;
-            document.getElementById('autoSyncEnabled').checked = autoSyncEnabled;
             document.getElementById('syncConfigModal').classList.add('active');
         }
 
@@ -2882,7 +2879,6 @@
         // 保存同步配置
         function saveSyncConfig() {
             const newUserId = document.getElementById('syncUserId').value.trim();
-            autoSyncEnabled = document.getElementById('autoSyncEnabled').checked;
 
             if (!newUserId) {
                 alert('请输入同步密钥');
@@ -2891,7 +2887,6 @@
 
             syncUserId = newUserId;
             localStorage.setItem('syncUserId', syncUserId);
-            localStorage.setItem('autoSyncEnabled', autoSyncEnabled);
 
             closeSyncConfig();
             initCloudSync();
@@ -2921,43 +2916,47 @@
                 return;
             }
 
-            updateSyncStatus('syncing', '连接中...');
+            updateSyncStatus('online', '已连接');
+        }
 
-            // 取消之前的监听
-            if (syncUnsubscribe) {
-                syncUnsubscribe();
-            }
+        // 压缩历史数据（只保留最近90天）
+        function trimHistoryDataForUpload(data) {
+            const trimmed = {};
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - 90);
+            const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
-            // 设置实时监听
-            const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
-            syncUnsubscribe = window.firebaseOnSnapshot(docRef, (docSnap) => {
-                if (isSyncing) return; // 避免与自己上传的数据冲突
-
-                if (docSnap.exists()) {
-                    const cloudData = docSnap.data();
-                    const localTimestamp = parseInt(localStorage.getItem('lastSyncTimestamp') || '0');
-                    const cloudTimestamp = cloudData.timestamp || 0;
-
-                    if (cloudTimestamp > localTimestamp) {
-                        // 云端数据较新，下载并合并
-                        console.log('[CloudSync] 检测到云端新数据，正在下载...');
-                        downloadFromCloud(cloudData);
-                    } else {
-                        updateSyncStatus('synced', '已同步');
-                    }
-                } else {
-                    // 云端无数据，上传本地数据
-                    console.log('[CloudSync] 云端无数据，准备上传...');
-                    if (autoSyncEnabled) {
-                        uploadToCloud();
-                    } else {
-                        updateSyncStatus('offline', '自动同步已关闭');
+            for (const code in data) {
+                const fundHistory = data[code];
+                if (typeof fundHistory === 'object') {
+                    trimmed[code] = {};
+                    for (const date in fundHistory) {
+                        if (date >= cutoffStr) {
+                            trimmed[code][date] = fundHistory[date];
+                        }
                     }
                 }
-            }, (error) => {
-                console.error('[CloudSync] 监听失败:', error);
-                updateSyncStatus('error', '同步失败');
-            });
+            }
+            return trimmed;
+        }
+
+        // 压缩基金详情（只保留必要字段）
+        function trimFundDetailsForUpload(details) {
+            const trimmed = {};
+            const essentialFields = ['name', 'type', 'dwjz', 'gsz', 'gszzl', 'gztime', 'jzrq'];
+
+            for (const code in details) {
+                const detail = details[code];
+                if (typeof detail === 'object') {
+                    trimmed[code] = {};
+                    essentialFields.forEach(field => {
+                        if (detail[field] !== undefined) {
+                            trimmed[code][field] = detail[field];
+                        }
+                    });
+                }
+            }
+            return trimmed;
         }
 
         // 上传到云端
@@ -2968,11 +2967,12 @@
             updateSyncStatus('syncing', '上传中...');
 
             try {
-                const data = {
+                // 压缩数据
+                const rawData = {
                     fundCodes: loadFundCodes(),
                     positions: positions,
-                    historyData: historyData,
-                    fundDetails: fundDetails,
+                    historyData: trimHistoryDataForUpload(historyData),
+                    fundDetails: trimFundDetailsForUpload(fundDetails),
                     dailyRanges: dailyRanges,
                     sortOrder: sortOrder,
                     targetRatios: loadTargetRatios(),
@@ -2980,15 +2980,85 @@
                     device: navigator.userAgent
                 };
 
+                // 检查数据大小（Firestore 限制 1MB）
+                const dataSize = JSON.stringify(rawData).length;
+                console.log('[CloudSync] 压缩后数据大小:', (dataSize / 1024).toFixed(2), 'KB');
+
+                // 如果还太大，进一步压缩
+                let data = rawData;
+                if (dataSize > 900000) {
+                    console.log('[CloudSync] 数据仍然较大，进一步压缩...');
+                    // 只保留最近30天的历史数据
+                    const cutoffDate = new Date();
+                    cutoffDate.setDate(cutoffDate.getDate() - 30);
+                    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+                    for (const code in data.historyData) {
+                        const fundHistory = data.historyData[code];
+                        const trimmed = {};
+                        for (const date in fundHistory) {
+                            if (date >= cutoffStr) {
+                                trimmed[date] = fundHistory[date];
+                            }
+                        }
+                        data.historyData[code] = trimmed;
+                    }
+
+                    const newSize = JSON.stringify(data).length;
+                    console.log('[CloudSync] 二次压缩后数据大小:', (newSize / 1024).toFixed(2), 'KB');
+
+                    if (newSize > 900000) {
+                        throw new Error('数据超过 900KB，请减少基金数量或联系开发者');
+                    }
+                }
+
+                console.log('[CloudSync] 开始上传...');
                 const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
-                await window.firebaseSetDoc(docRef, data);
+
+                // 使用重试机制
+                let retryCount = 0;
+                const maxRetries = 3;
+                let lastError = null;
+
+                while (retryCount < maxRetries) {
+                    try {
+                        await window.firebaseSetDoc(docRef, data);
+                        console.log('[CloudSync] setDoc 完成');
+                        break;
+                    } catch (err) {
+                        lastError = err;
+                        retryCount++;
+                        console.warn(`[CloudSync] 上传失败，第${retryCount}次重试...`, err.message);
+
+                        if (err.code === 'resource-exhausted') {
+                            // 限流错误，等待更长时间
+                            await new Promise(r => setTimeout(r, 2000 * retryCount));
+                        } else if (retryCount < maxRetries) {
+                            await new Promise(r => setTimeout(r, 1000 * retryCount));
+                        }
+                    }
+                }
+
+                if (retryCount >= maxRetries && lastError) {
+                    throw lastError;
+                }
 
                 localStorage.setItem('lastSyncTimestamp', data.timestamp.toString());
                 updateSyncStatus('synced', '已同步');
                 console.log('[CloudSync] 上传成功');
             } catch (error) {
                 console.error('[CloudSync] 上传失败:', error);
-                updateSyncStatus('error', '上传失败');
+                let errorMsg = '上传失败';
+                if (error.code === 'permission-denied') {
+                    errorMsg = '权限不足，请检查 Firestore 规则';
+                } else if (error.code === 'unauthenticated') {
+                    errorMsg = '未认证，请检查 Firebase 配置';
+                } else if (error.code === 'unavailable' || error.message?.includes('network')) {
+                    errorMsg = '网络不可用';
+                } else if (error.message) {
+                    errorMsg = error.message;
+                }
+                updateSyncStatus('error', errorMsg);
             } finally {
                 isSyncing = false;
             }
@@ -3056,8 +3126,27 @@
                 alert('请先配置同步密钥');
                 return;
             }
-            await uploadToCloud();
-            alert('✅ 数据已上传到云端');
+
+            if (!window.firebaseDB) {
+                alert('❌ Firebase 未初始化，请检查网络连接后刷新页面');
+                return;
+            }
+
+            // 设置超时检测（60秒）
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('上传超时，请检查网络连接')), 60000);
+            });
+
+            try {
+                console.log('[CloudSync] 开始手动上传...');
+                await Promise.race([uploadToCloud(), timeoutPromise]);
+                alert('✅ 数据已上传到云端');
+            } catch (error) {
+                console.error('手动上传失败:', error);
+                updateSyncStatus('error', '上传失败: ' + (error.message || '未知错误'));
+                alert('❌ 上传失败: ' + (error.message || '请检查网络连接或刷新页面重试'));
+                isSyncing = false;
+            }
         }
 
         // 手动从云端下载
@@ -3068,7 +3157,7 @@
             }
 
             if (!window.firebaseDB) {
-                alert('❌ Firebase 未初始化');
+                alert('❌ Firebase 未初始化，请检查网络连接后刷新页面');
                 return;
             }
 
@@ -3076,9 +3165,32 @@
 
             try {
                 const docRef = window.firebaseDoc(window.firebaseDB, 'fundData', syncUserId);
-                const docSnap = await window.firebaseGetDoc(docRef);
 
-                if (docSnap.exists()) {
+                // 使用重试机制
+                let retryCount = 0;
+                const maxRetries = 3;
+                let docSnap = null;
+                let lastError = null;
+
+                while (retryCount < maxRetries) {
+                    try {
+                        docSnap = await window.firebaseGetDoc(docRef);
+                        break;
+                    } catch (err) {
+                        lastError = err;
+                        retryCount++;
+                        console.warn(`[CloudSync] 下载失败，第${retryCount}次重试...`, err.message);
+                        if (retryCount < maxRetries) {
+                            await new Promise(r => setTimeout(r, 1000 * retryCount));
+                        }
+                    }
+                }
+
+                if (retryCount >= maxRetries && lastError) {
+                    throw lastError;
+                }
+
+                if (docSnap && docSnap.exists()) {
                     await downloadFromCloud(docSnap.data());
                     alert('✅ 数据已从云端下载');
                 } else {
@@ -3094,13 +3206,6 @@
 
         // 数据变更时自动上传
         function autoSyncToCloud() {
-            if (autoSyncEnabled && syncUserId) {
-                // 防抖，避免频繁上传
-                clearTimeout(window.syncTimeout);
-                window.syncTimeout = setTimeout(() => {
-                    uploadToCloud();
-                }, 3000);
-            }
         }
 
         // 切换买入模式
@@ -5837,13 +5942,6 @@
                 <label for="syncUserId">同步密钥（自定义标识）</label>
                 <small style="color: #999; font-size: 12px; display: block; margin-bottom: 8px;">在所有设备使用相同的密钥即可同步数据</small>
                 <input type="text" id="syncUserId" placeholder="如：my-fund-data-2024">
-            </div>
-            <div class="form-group">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="autoSyncEnabled" checked>
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-label">启用自动同步</span>
-                </label>
             </div>
             <div class="btn-group">
                 <button class="btn btn-secondary" onclick="closeSyncConfig()">取消</button>
